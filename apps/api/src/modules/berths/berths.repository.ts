@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import type { Berth, Prisma } from '@prisma/client';
 
 import type {
@@ -39,7 +39,7 @@ export const BERTHS_REPOSITORY = Symbol('BERTHS_REPOSITORY');
 
 @Injectable()
 export class PrismaBerthsRepository implements BerthsRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async findPage(tenantId: string, query: NormalizedBerthListQuery): Promise<BerthPageResult> {
     const where = this.buildWhere(tenantId, query);

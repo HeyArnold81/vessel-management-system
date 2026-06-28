@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import type { BillingEvent, BillingExportBatch, Prisma } from '@prisma/client';
 
 import type {
@@ -50,7 +50,7 @@ export const BILLING_EXPORT_BATCHES_REPOSITORY = Symbol('BILLING_EXPORT_BATCHES_
 
 @Injectable()
 export class PrismaBillingExportBatchesRepository implements BillingExportBatchesRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async findPage(
     tenantId: string,

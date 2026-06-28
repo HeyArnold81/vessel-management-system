@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 
 import type { AiAssistantSource } from '@vms/shared';
 
@@ -35,7 +35,7 @@ export const AI_ASSISTANT_REPOSITORY = Symbol('AI_ASSISTANT_REPOSITORY');
 
 @Injectable()
 export class PrismaAiAssistantRepository implements AiAssistantRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async buildContext(tenantId: string, question: string): Promise<AiAssistantContext> {
     const normalizedQuestion = question.trim();

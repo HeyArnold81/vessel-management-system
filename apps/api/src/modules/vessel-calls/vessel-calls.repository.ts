@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import type { Prisma, VesselCall } from '@prisma/client';
 
 import type {
@@ -41,7 +41,7 @@ export const VESSEL_CALLS_REPOSITORY = Symbol('VESSEL_CALLS_REPOSITORY');
 
 @Injectable()
 export class PrismaVesselCallsRepository implements VesselCallsRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async findPage(
     tenantId: string,

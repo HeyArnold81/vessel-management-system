@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../../database/prisma.service.js';
@@ -52,7 +52,7 @@ export const REPORTS_REPOSITORY = Symbol('REPORTS_REPOSITORY');
 
 @Injectable()
 export class PrismaReportsRepository implements ReportsRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async getOverviewData(tenantId: string, query: NormalizedReportQuery): Promise<ReportsData> {
     const vesselCallWhere = this.buildVesselCallWhere(tenantId, query);

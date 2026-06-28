@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../../database/prisma.service.js';
 
@@ -14,7 +14,7 @@ type AiAuditRecordInput = {
 
 @Injectable()
 export class AiAssistantAuditService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async record(input: AiAuditRecordInput): Promise<void> {
     await this.prisma.auditLog.create({

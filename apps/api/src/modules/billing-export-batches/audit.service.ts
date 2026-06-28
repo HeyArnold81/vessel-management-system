@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../../database/prisma.service.js';
 
@@ -12,7 +12,7 @@ type AuditRecordInput = {
 
 @Injectable()
 export class BillingExportBatchesAuditService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async record(input: AuditRecordInput): Promise<void> {
     await this.prisma.auditLog.create({

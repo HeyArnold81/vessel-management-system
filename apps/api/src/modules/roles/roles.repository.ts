@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import type { Permission, Prisma } from '@prisma/client';
 
 import type { CreateRoleInput, RoleSortField, SortDirection, UpdateRoleInput } from '@vms/shared';
@@ -41,7 +41,7 @@ const roleInclude = {
 
 @Injectable()
 export class PrismaRolesRepository implements RolesRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async findPage(tenantId: string, query: NormalizedRoleListQuery): Promise<RolePageResult> {
     const where = this.buildWhere(tenantId, query);
