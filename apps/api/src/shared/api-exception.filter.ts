@@ -23,12 +23,19 @@ export class ApiExceptionFilter implements ExceptionFilter {
     response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       error: {
         code: 'INTERNAL_SERVER_ERROR',
-        message:
-          process.env.NODE_ENV === 'test' && exception instanceof Error
-            ? exception.message
-            : 'An unexpected error occurred.',
+        message: this.shouldExposeUnexpectedError()
+          ? this.getUnexpectedMessage(exception)
+          : 'An unexpected error occurred.',
       },
     });
+  }
+
+  private shouldExposeUnexpectedError(): boolean {
+    return process.env.NODE_ENV !== 'production';
+  }
+
+  private getUnexpectedMessage(exception: unknown): string {
+    return exception instanceof Error ? exception.message : 'An unexpected error occurred.';
   }
 
   private getCode(status: number): string {
