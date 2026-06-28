@@ -1,0 +1,627 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id                   String               @id @default(uuid()) @db.Uuid
+  name                 String
+  slug                 String               @unique
+  status               String               @default("active")
+  users                User[]
+  organizations        Organization[]
+  ports                Port[]
+  vessels              Vessel[]
+  vesselCalls          VesselCall[]
+  movements            VesselMovement[]
+  billingEvents        BillingEvent[]
+  billingExportBatches BillingExportBatch[]
+  auditLogs            AuditLog[]
+  createdAt            DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("tenants")
+}
+
+model User {
+  id              String     @id @default(uuid()) @db.Uuid
+  tenantId        String     @map("tenant_id") @db.Uuid
+  tenant          Tenant     @relation(fields: [tenantId], references: [id])
+  email           String
+  displayName     String     @map("display_name")
+  authProvider    String     @map("auth_provider")
+  externalSubject String?    @map("external_subject")
+  passwordHash    String?    @map("password_hash")
+  status          String     @default("active")
+  roles           UserRole[]
+  auditLogs       AuditLog[]
+  createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt       DateTime?  @map("deleted_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, email])
+  @@index([tenantId, status])
+  @@map("users")
+}
+
+model Role {
+  id              String           @id @default(uuid()) @db.Uuid
+  tenantId        String?          @map("tenant_id") @db.Uuid
+  code            String
+  name            String
+  description     String?
+  status          String           @default("active")
+  isSystemRole    Boolean          @default(false) @map("is_system_role")
+  isPrivileged    Boolean          @default(false) @map("is_privileged")
+  requiresApproval Boolean         @default(false) @map("requires_approval")
+  users           UserRole[]
+  rolePermissions RolePermission[]
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt       DateTime?        @map("deleted_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, code])
+  @@index([tenantId, status])
+  @@map("roles")
+}
+
+model Permission {
+  id                String           @id @default(uuid()) @db.Uuid
+  permissionGroupId String?          @map("permission_group_id") @db.Uuid
+  permissionGroup   PermissionGroup? @relation(fields: [permissionGroupId], references: [id], onDelete: SetNull)
+  code              String           @unique
+  description       String?
+  resource          String?
+  action            String?
+  isPrivileged      Boolean          @default(false) @map("is_privileged")
+  sortOrder         Int              @default(0) @map("sort_order")
+  rolePermissions   RolePermission[]
+  createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([permissionGroupId])
+  @@index([resource, action])
+  @@map("permissions")
+}
+
+model PermissionGroup {
+  id          String       @id @default(uuid()) @db.Uuid
+  code        String       @unique
+  name        String
+  description String?
+  sortOrder   Int          @default(0) @map("sort_order")
+  permissions Permission[]
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("permission_groups")
+}
+
+model UserRole {
+  userId     String   @map("user_id") @db.Uuid
+  roleId     String   @map("role_id") @db.Uuid
+  user       User     @relation(fields: [userId], references: [id])
+  role       Role     @relation(fields: [roleId], references: [id])
+  assignedAt DateTime @default(now()) @map("assigned_at") @db.Timestamptz(6)
+
+  @@id([userId, roleId])
+  @@index([roleId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  roleId       String     @map("role_id") @db.Uuid
+  permissionId String     @map("permission_id") @db.Uuid
+  role         Role       @relation(fields: [roleId], references: [id])
+  permission   Permission @relation(fields: [permissionId], references: [id])
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+model Country {
+  id       String   @id @default(uuid()) @db.Uuid
+  iso2Code String   @unique @map("iso2_code") @db.Char(2)
+  iso3Code String   @unique @map("iso3_code") @db.Char(3)
+  name     String
+  ports    Port[]
+  vessels  Vessel[]
+
+  @@map("countries")
+}
+
+model Organization {
+  id                  String            @id @default(uuid()) @db.Uuid
+  tenantId            String            @map("tenant_id") @db.Uuid
+  tenant              Tenant            @relation(fields: [tenantId], references: [id])
+  legalName           String            @map("legal_name")
+  tradingName         String?           @map("trading_name")
+  registrationNumber  String?           @map("registration_number")
+  taxNumber           String?           @map("tax_number")
+  email               String?
+  phone               String?
+  status              String            @default("active")
+  vesselParties       VesselParty[]
+  agentVesselCalls    VesselCall[]      @relation("VesselCallAgent")
+  operatorVesselCalls VesselCall[]      @relation("VesselCallOperator")
+  movementServices    MovementService[]
+  invoices            Invoice[]
+  createdAt           DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt           DateTime?         @map("deleted_at") @db.Timestamptz(6)
+
+  @@index([tenantId, legalName])
+  @@map("organizations")
+}
+
+model Port {
+  id          String           @id @default(uuid()) @db.Uuid
+  tenantId    String           @map("tenant_id") @db.Uuid
+  tenant      Tenant           @relation(fields: [tenantId], references: [id])
+  countryId   String           @map("country_id") @db.Uuid
+  country     Country          @relation(fields: [countryId], references: [id])
+  unlocode    String
+  name        String
+  timeZone    String           @map("time_zone")
+  status      String           @default("active")
+  terminals   Terminal[]
+  vesselCalls VesselCall[]
+  movements   VesselMovement[]
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt   DateTime?        @map("deleted_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, unlocode])
+  @@index([tenantId, name])
+  @@map("ports")
+}
+
+model Terminal {
+  id        String    @id @default(uuid()) @db.Uuid
+  tenantId  String    @map("tenant_id") @db.Uuid
+  portId    String    @map("port_id") @db.Uuid
+  port      Port      @relation(fields: [portId], references: [id])
+  code      String
+  name      String
+  type      String    @map("terminal_type")
+  status    String    @default("active")
+  berths    Berth[]
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, portId, code])
+  @@index([portId])
+  @@map("terminals")
+}
+
+model Berth {
+  id            String              @id @default(uuid()) @db.Uuid
+  tenantId      String              @map("tenant_id") @db.Uuid
+  terminalId    String              @map("terminal_id") @db.Uuid
+  terminal      Terminal            @relation(fields: [terminalId], references: [id])
+  code          String
+  name          String
+  maxLengthM    Decimal?            @map("max_length_m") @db.Decimal(8, 2)
+  maxDraftM     Decimal?            @map("max_draft_m") @db.Decimal(6, 2)
+  status        String              @default("active")
+  berthStays    MovementBerthStay[]
+  vesselCalls   VesselCall[]
+  movementsFrom VesselMovement[]    @relation("MovementFromBerth")
+  movementsTo   VesselMovement[]    @relation("MovementToBerth")
+  createdAt     DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt     DateTime?           @map("deleted_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, terminalId, code])
+  @@index([terminalId])
+  @@map("berths")
+}
+
+model Vessel {
+  id             String           @id @default(uuid()) @db.Uuid
+  tenantId       String           @map("tenant_id") @db.Uuid
+  tenant         Tenant           @relation(fields: [tenantId], references: [id])
+  flagCountryId  String?          @map("flag_country_id") @db.Uuid
+  flagCountry    Country?         @relation(fields: [flagCountryId], references: [id])
+  name           String
+  imoNumber      String           @map("imo_number")
+  mmsi           String?
+  callSign       String?          @map("call_sign")
+  vesselType     String           @map("vessel_type")
+  grossTonnage   Decimal?         @map("gross_tonnage") @db.Decimal(12, 2)
+  lengthOverallM Decimal?         @map("length_overall_m") @db.Decimal(8, 2)
+  maxDraftM      Decimal?         @map("max_draft_m") @db.Decimal(6, 2)
+  status         String           @default("active")
+  parties        VesselParty[]
+  vesselCalls    VesselCall[]
+  movements      VesselMovement[]
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?        @map("deleted_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, imoNumber])
+  @@index([tenantId, name])
+  @@map("vessels")
+}
+
+model VesselParty {
+  id             String       @id @default(uuid()) @db.Uuid
+  tenantId       String       @map("tenant_id") @db.Uuid
+  vesselId       String       @map("vessel_id") @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  partyRole      String       @map("party_role")
+  effectiveFrom  DateTime     @map("effective_from") @db.Date
+  effectiveTo    DateTime?    @map("effective_to") @db.Date
+  vessel         Vessel       @relation(fields: [vesselId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([vesselId, partyRole])
+  @@index([organizationId])
+  @@map("vessel_parties")
+}
+
+model VesselCall {
+  id            String           @id @default(uuid()) @db.Uuid
+  tenantId      String           @map("tenant_id") @db.Uuid
+  tenant        Tenant           @relation(fields: [tenantId], references: [id])
+  callReference String           @map("call_reference")
+  vesselId      String           @map("vessel_id") @db.Uuid
+  vessel        Vessel           @relation(fields: [vesselId], references: [id])
+  portId        String           @map("port_id") @db.Uuid
+  port          Port             @relation(fields: [portId], references: [id])
+  berthId       String?          @map("berth_id") @db.Uuid
+  berth         Berth?           @relation(fields: [berthId], references: [id])
+  agentId       String?          @map("agent_id") @db.Uuid
+  agent         Organization?    @relation("VesselCallAgent", fields: [agentId], references: [id])
+  operatorId    String?          @map("operator_id") @db.Uuid
+  operator      Organization?    @relation("VesselCallOperator", fields: [operatorId], references: [id])
+  voyageNumber  String?          @map("voyage_number")
+  status        String           @default("planned")
+  eta           DateTime?        @db.Timestamptz(6)
+  etd           DateTime?        @db.Timestamptz(6)
+  ata           DateTime?        @db.Timestamptz(6)
+  atd           DateTime?        @db.Timestamptz(6)
+  remarks       String?
+  movements     VesselMovement[]
+  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt     DateTime?        @map("deleted_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, callReference])
+  @@index([tenantId, status, eta])
+  @@index([vesselId, eta])
+  @@index([portId, eta])
+  @@index([berthId, eta])
+  @@map("vessel_calls")
+}
+
+model VesselMovement {
+  id                String              @id @default(uuid()) @db.Uuid
+  tenantId          String              @map("tenant_id") @db.Uuid
+  tenant            Tenant              @relation(fields: [tenantId], references: [id])
+  movementReference String              @map("movement_reference")
+  vesselCallId      String              @map("vessel_call_id") @db.Uuid
+  vesselCall        VesselCall          @relation(fields: [vesselCallId], references: [id])
+  vesselId          String              @map("vessel_id") @db.Uuid
+  vessel            Vessel              @relation(fields: [vesselId], references: [id])
+  portId            String              @map("port_id") @db.Uuid
+  port              Port                @relation(fields: [portId], references: [id])
+  fromBerthId       String?             @map("from_berth_id") @db.Uuid
+  fromBerth         Berth?              @relation("MovementFromBerth", fields: [fromBerthId], references: [id])
+  toBerthId         String?             @map("to_berth_id") @db.Uuid
+  toBerth           Berth?              @relation("MovementToBerth", fields: [toBerthId], references: [id])
+  movementType      String              @map("movement_type")
+  status            String              @default("planned")
+  plannedAt         DateTime?           @map("planned_at") @db.Timestamptz(6)
+  actualAt          DateTime?           @map("actual_at") @db.Timestamptz(6)
+  eta               DateTime?           @db.Timestamptz(6)
+  etd               DateTime?           @db.Timestamptz(6)
+  ata               DateTime?           @db.Timestamptz(6)
+  atd               DateTime?           @db.Timestamptz(6)
+  remarks           String?
+  berthStays        MovementBerthStay[]
+  cargo             MovementCargo[]
+  pilotageJobs      PilotageJob[]
+  towageJobs        TowageJob[]
+  services          MovementService[]
+  operationalEvents OperationalEvent[]
+  invoices          Invoice[]
+  createdAt         DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt         DateTime?           @map("deleted_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, movementReference])
+  @@index([tenantId, status])
+  @@index([vesselCallId, plannedAt])
+  @@index([vesselCallId, actualAt])
+  @@index([vesselId, eta])
+  @@index([portId, eta])
+  @@map("vessel_movements")
+}
+
+model MovementBerthStay {
+  id                    String         @id @default(uuid()) @db.Uuid
+  tenantId              String         @map("tenant_id") @db.Uuid
+  movementId            String         @map("movement_id") @db.Uuid
+  berthId               String         @map("berth_id") @db.Uuid
+  sequenceNo            Int            @map("sequence_no")
+  alongsideAt           DateTime?      @map("alongside_at") @db.Timestamptz(6)
+  operationsStartedAt   DateTime?      @map("operations_started_at") @db.Timestamptz(6)
+  operationsCompletedAt DateTime?      @map("operations_completed_at") @db.Timestamptz(6)
+  castOffAt             DateTime?      @map("cast_off_at") @db.Timestamptz(6)
+  movement              VesselMovement @relation(fields: [movementId], references: [id])
+  berth                 Berth          @relation(fields: [berthId], references: [id])
+  createdAt             DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([movementId, sequenceNo])
+  @@index([berthId, alongsideAt, castOffAt])
+  @@map("movement_berth_stays")
+}
+
+model CargoItem {
+  id            String          @id @default(uuid()) @db.Uuid
+  tenantId      String          @map("tenant_id") @db.Uuid
+  cargoCode     String          @map("cargo_code")
+  name          String
+  cargoCategory String          @map("cargo_category")
+  unNumber      String?         @map("un_number")
+  isHazardous   Boolean         @default(false) @map("is_hazardous")
+  status        String          @default("active")
+  movements     MovementCargo[]
+  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt     DateTime?       @map("deleted_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, cargoCode])
+  @@index([tenantId, name])
+  @@index([tenantId, status])
+  @@map("cargo_items")
+}
+
+model MovementCargo {
+  id            String         @id @default(uuid()) @db.Uuid
+  tenantId      String         @map("tenant_id") @db.Uuid
+  movementId    String         @map("movement_id") @db.Uuid
+  cargoItemId   String         @map("cargo_item_id") @db.Uuid
+  operationType String         @map("operation_type")
+  quantity      Decimal        @db.Decimal(14, 3)
+  unitOfMeasure String         @map("unit_of_measure")
+  movement      VesselMovement @relation(fields: [movementId], references: [id])
+  cargoItem     CargoItem      @relation(fields: [cargoItemId], references: [id])
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([movementId])
+  @@index([cargoItemId])
+  @@map("movement_cargo")
+}
+
+model PilotageJob {
+  id          String         @id @default(uuid()) @db.Uuid
+  tenantId    String         @map("tenant_id") @db.Uuid
+  movementId  String         @map("movement_id") @db.Uuid
+  movement    VesselMovement @relation(fields: [movementId], references: [id])
+  jobType     String         @map("job_type")
+  scheduledAt DateTime?      @map("scheduled_at") @db.Timestamptz(6)
+  completedAt DateTime?      @map("completed_at") @db.Timestamptz(6)
+  status      String         @default("requested")
+  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([movementId])
+  @@index([tenantId, status, scheduledAt])
+  @@map("pilotage_jobs")
+}
+
+model TowageJob {
+  id           String         @id @default(uuid()) @db.Uuid
+  tenantId     String         @map("tenant_id") @db.Uuid
+  movementId   String         @map("movement_id") @db.Uuid
+  movement     VesselMovement @relation(fields: [movementId], references: [id])
+  jobType      String         @map("job_type")
+  tugsRequired Int            @map("tugs_required")
+  scheduledAt  DateTime?      @map("scheduled_at") @db.Timestamptz(6)
+  completedAt  DateTime?      @map("completed_at") @db.Timestamptz(6)
+  status       String         @default("requested")
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([movementId])
+  @@index([tenantId, status, scheduledAt])
+  @@map("towage_jobs")
+}
+
+model ServiceCatalog {
+  id               String            @id @default(uuid()) @db.Uuid
+  tenantId         String            @map("tenant_id") @db.Uuid
+  code             String
+  name             String
+  category         String
+  defaultUnit      String            @map("default_unit")
+  isBillable       Boolean           @default(true) @map("is_billable")
+  status           String            @default("active")
+  movementServices MovementService[]
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt        DateTime?         @map("deleted_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, code])
+  @@index([tenantId, category])
+  @@index([tenantId, status])
+  @@map("service_catalog")
+}
+
+model MovementService {
+  id                     String         @id @default(uuid()) @db.Uuid
+  tenantId               String         @map("tenant_id") @db.Uuid
+  movementId             String         @map("movement_id") @db.Uuid
+  serviceId              String         @map("service_id") @db.Uuid
+  providerOrganizationId String?        @map("provider_organization_id") @db.Uuid
+  status                 String         @default("requested")
+  quantity               Decimal        @db.Decimal(14, 3)
+  unitOfMeasure          String         @map("unit_of_measure")
+  requestedAt            DateTime?      @map("requested_at") @db.Timestamptz(6)
+  completedAt            DateTime?      @map("completed_at") @db.Timestamptz(6)
+  isBillable             Boolean        @default(true) @map("is_billable")
+  movement               VesselMovement @relation(fields: [movementId], references: [id])
+  service                ServiceCatalog @relation(fields: [serviceId], references: [id])
+  providerOrganization   Organization?  @relation(fields: [providerOrganizationId], references: [id])
+  invoiceLines           InvoiceLine[]
+  billingEvents          BillingEvent[]
+  createdAt              DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([movementId])
+  @@index([providerOrganizationId, status])
+  @@index([tenantId, status])
+  @@index([tenantId, isBillable, completedAt])
+  @@map("movement_services")
+}
+
+model BillingEvent {
+  id                String              @id @default(uuid()) @db.Uuid
+  tenantId          String              @map("tenant_id") @db.Uuid
+  tenant            Tenant              @relation(fields: [tenantId], references: [id])
+  eventReference    String              @map("event_reference")
+  movementServiceId String              @map("movement_service_id") @db.Uuid
+  movementService   MovementService     @relation(fields: [movementServiceId], references: [id])
+  status            String              @default("draft")
+  erpSystem         String?             @map("erp_system")
+  exportBatchId     String?             @map("export_batch_id") @db.Uuid
+  exportBatch       BillingExportBatch? @relation(fields: [exportBatchId], references: [id])
+  exportedAt        DateTime?           @map("exported_at") @db.Timestamptz(6)
+  acceptedAt        DateTime?           @map("accepted_at") @db.Timestamptz(6)
+  rejectedAt        DateTime?           @map("rejected_at") @db.Timestamptz(6)
+  failureReason     String?             @map("failure_reason")
+  payload           Json
+  createdAt         DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt         DateTime?           @map("deleted_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, eventReference])
+  @@unique([tenantId, movementServiceId])
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, erpSystem, exportedAt])
+  @@index([exportBatchId])
+  @@map("billing_events")
+}
+
+model BillingExportBatch {
+  id                String         @id @default(uuid()) @db.Uuid
+  tenantId          String         @map("tenant_id") @db.Uuid
+  tenant            Tenant         @relation(fields: [tenantId], references: [id])
+  batchReference    String         @map("batch_reference")
+  status            String         @default("queued")
+  erpSystem         String         @map("erp_system")
+  externalReference String?        @map("external_reference")
+  eventCount        Int            @map("event_count")
+  payload           Json
+  requestedAt       DateTime       @default(now()) @map("requested_at") @db.Timestamptz(6)
+  completedAt       DateTime?      @map("completed_at") @db.Timestamptz(6)
+  failedAt          DateTime?      @map("failed_at") @db.Timestamptz(6)
+  failureReason     String?        @map("failure_reason")
+  events            BillingEvent[]
+  createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt         DateTime?      @map("deleted_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, batchReference])
+  @@index([tenantId, status, requestedAt])
+  @@index([tenantId, erpSystem, requestedAt])
+  @@index([externalReference])
+  @@map("billing_export_batches")
+}
+
+model Invoice {
+  id                   String         @id @default(uuid()) @db.Uuid
+  tenantId             String         @map("tenant_id") @db.Uuid
+  movementId           String         @map("movement_id") @db.Uuid
+  billToOrganizationId String         @map("bill_to_organization_id") @db.Uuid
+  invoiceNumber        String         @map("invoice_number")
+  invoiceDate          DateTime       @map("invoice_date") @db.Date
+  dueDate              DateTime       @map("due_date") @db.Date
+  currencyCode         String         @map("currency_code") @db.Char(3)
+  subtotalAmount       Decimal        @map("subtotal_amount") @db.Decimal(14, 2)
+  taxAmount            Decimal        @map("tax_amount") @db.Decimal(14, 2)
+  totalAmount          Decimal        @map("total_amount") @db.Decimal(14, 2)
+  status               String         @default("draft")
+  movement             VesselMovement @relation(fields: [movementId], references: [id])
+  billToOrganization   Organization   @relation(fields: [billToOrganizationId], references: [id])
+  lines                InvoiceLine[]
+  createdAt            DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt            DateTime?      @map("deleted_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, invoiceNumber])
+  @@index([movementId])
+  @@index([billToOrganizationId, status])
+  @@map("invoices")
+}
+
+model InvoiceLine {
+  id                String           @id @default(uuid()) @db.Uuid
+  tenantId          String           @map("tenant_id") @db.Uuid
+  invoiceId         String           @map("invoice_id") @db.Uuid
+  movementServiceId String?          @map("movement_service_id") @db.Uuid
+  description       String
+  quantity          Decimal          @db.Decimal(14, 3)
+  unitOfMeasure     String           @map("unit_of_measure")
+  unitPrice         Decimal          @map("unit_price") @db.Decimal(14, 4)
+  taxRate           Decimal          @map("tax_rate") @db.Decimal(7, 4)
+  lineTotalAmount   Decimal          @map("line_total_amount") @db.Decimal(14, 2)
+  invoice           Invoice          @relation(fields: [invoiceId], references: [id])
+  movementService   MovementService? @relation(fields: [movementServiceId], references: [id])
+  createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([invoiceId])
+  @@index([movementServiceId])
+  @@map("invoice_lines")
+}
+
+model OperationalEvent {
+  id               String         @id @default(uuid()) @db.Uuid
+  tenantId         String         @map("tenant_id") @db.Uuid
+  movementId       String         @map("movement_id") @db.Uuid
+  movement         VesselMovement @relation(fields: [movementId], references: [id])
+  eventType        String         @map("event_type")
+  eventTime        DateTime       @map("event_time") @db.Timestamptz(6)
+  source           String
+  recordedByUserId String?        @map("recorded_by_user_id") @db.Uuid
+  details          Json?
+  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([movementId, eventTime])
+  @@index([tenantId, eventType, eventTime])
+  @@map("operational_events")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  actorUserId String?  @map("actor_user_id") @db.Uuid
+  actorUser   User?    @relation(fields: [actorUserId], references: [id])
+  action      String
+  entityType  String   @map("entity_type")
+  entityId    String   @map("entity_id") @db.Uuid
+  requestId   String?  @map("request_id")
+  ipAddress   String?  @map("ip_address")
+  userAgent   String?  @map("user_agent")
+  beforeData  Json?    @map("before_data")
+  afterData   Json?    @map("after_data")
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, entityType, entityId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([requestId])
+  @@map("audit_logs")
+}

@@ -1,0 +1,51 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: vms-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: vms_dev
+      POSTGRES_USER: vms_app
+      POSTGRES_PASSWORD: vms_password
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U vms_app -d vms_dev']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+    container_name: vms-web
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://vms_app:vms_password@postgres:5432/vms_dev?schema=public
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+      NEXT_PUBLIC_APP_NAME: Vessel Management System
+    ports:
+      - '3000:3000'
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    container_name: vms-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://vms_app:vms_password@postgres:5432/vms_dev?schema=public
+      API_PORT: 4000
+      WEB_ORIGIN: http://localhost:3000
+    ports:
+      - '4000:4000'
+
+volumes:
+  postgres_data:

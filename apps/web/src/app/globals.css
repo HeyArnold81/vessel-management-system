@@ -1,0 +1,122 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --color-ink: 15 23 42;
+  --color-steel: 71 85 105;
+  --color-muted: 100 116 139;
+  --color-harbor: 15 118 110;
+  --color-signal: 180 83 9;
+  --color-surface: 247 249 251;
+  --color-panel: 255 255 255;
+  --color-line: 226 232 240;
+  --shadow-panel: 0 1px 2px rgb(15 23 42 / 0.08);
+  background: rgb(var(--color-surface));
+  color: rgb(var(--color-ink));
+}
+
+.dark {
+  color-scheme: dark;
+  --color-ink: 226 232 240;
+  --color-steel: 148 163 184;
+  --color-muted: 148 163 184;
+  --color-harbor: 45 212 191;
+  --color-signal: 251 191 36;
+  --color-surface: 10 15 25;
+  --color-panel: 15 23 42;
+  --color-line: 51 65 85;
+  --shadow-panel: 0 1px 2px rgb(0 0 0 / 0.24);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: rgb(var(--color-surface));
+  color: rgb(var(--color-ink));
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button,
+a,
+input,
+textarea,
+select {
+  outline-color: rgb(var(--color-harbor));
+}
+
+::selection {
+  background: rgb(var(--color-harbor) / 0.22);
+}
+
+.dark .bg-white {
+  background-color: rgb(var(--color-panel));
+}
+
+.dark .bg-surface {
+  background-color: rgb(var(--color-surface));
+}
+
+.dark .border-slate-100,
+.dark .border-slate-200,
+.dark .border-slate-300 {
+  border-color: rgb(var(--color-line));
+}
+
+.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+.dark .divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: rgb(var(--color-line));
+}
+
+.dark input,
+.dark select,
+.dark textarea {
+  background-color: rgb(15 23 42);
+  color: rgb(var(--color-ink));
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: rgb(148 163 184);
+}
+
+.dark .bg-slate-100 {
+  background-color: rgb(30 41 59);
+}
+
+.dark .bg-red-50 {
+  background-color: rgb(127 29 29 / 0.25);
+}
+
+.dark .border-red-200 {
+  border-color: rgb(248 113 113 / 0.35);
+}
+
+.dark .text-red-700,
+.dark .text-red-800 {
+  color: rgb(252 165 165);
+}
+
+.app-scrollbar {
+  scrollbar-color: rgb(var(--color-muted) / 0.45) transparent;
+}

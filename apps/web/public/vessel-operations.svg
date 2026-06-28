@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" role="img" aria-labelledby="title desc">
+  <title id="title">Vessel operations background</title>
+  <desc id="desc">A restrained harbor operations scene with vessels, berths, and navigation lines.</desc>
+  <rect width="1600" height="1000" fill="#eef5f7"/>
+  <path d="M0 650 C180 610 260 695 430 650 C610 600 730 690 900 645 C1100 590 1260 700 1600 625 L1600 1000 L0 1000 Z" fill="#d8e8eb"/>
+  <path d="M0 750 C210 705 330 795 520 742 C730 682 880 790 1060 735 C1260 675 1400 780 1600 720 L1600 1000 L0 1000 Z" fill="#c7dde1"/>
+  <g opacity="0.62" fill="none" stroke="#5f7f88" stroke-width="6" stroke-linecap="round">
+    <path d="M170 325 H610"/>
+    <path d="M930 330 H1370"/>
+    <path d="M710 260 V465"/>
+    <path d="M795 260 V465"/>
+  </g>
+  <g opacity="0.82">
+    <path d="M220 540 H500 L455 610 H270 Z" fill="#0f766e"/>
+    <rect x="285" y="485" width="120" height="55" rx="4" fill="#172026"/>
+    <rect x="425" y="510" width="52" height="30" rx="3" fill="#475569"/>
+    <path d="M1010 560 H1320 L1272 628 H1060 Z" fill="#475569"/>
+    <rect x="1090" y="500" width="150" height="60" rx="4" fill="#172026"/>
+    <rect x="1255" y="527" width="45" height="33" rx="3" fill="#0f766e"/>
+  </g>
+  <g opacity="0.42" fill="none" stroke="#0f766e" stroke-width="3">
+    <circle cx="360" cy="360" r="95"/>
+    <circle cx="1190" cy="360" r="115"/>
+    <path d="M360 265 V455"/>
+    <path d="M265 360 H455"/>
+    <path d="M1190 245 V475"/>
+    <path d="M1075 360 H1305"/>
+  </g>
+</svg>
+
