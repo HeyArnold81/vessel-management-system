@@ -58,6 +58,15 @@ Use:
 - Health check path: `/api/health`
 - Plan: free
 
+If you create a standard Render Node web service instead of a Docker/Blueprint service, use:
+
+```txt
+Build Command: npm ci && npm run build
+Start Command: npm run start
+```
+
+The root `start` script starts the NestJS API.
+
 Set environment variables:
 
 ```txt

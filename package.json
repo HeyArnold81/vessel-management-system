@@ -10,6 +10,8 @@
   ],
   "scripts": {
     "build": "npm run db:generate && npm run build --workspaces --if-present",
+    "start": "npm --workspace @vms/api run start",
+    "start:api": "npm --workspace @vms/api run start",
     "dev": "npm --workspace @vms/web run dev",
     "dev:api": "npm --workspace @vms/api run dev",
     "dev:web": "npm --workspace @vms/web run dev",
