@@ -8,6 +8,8 @@ import type {
   UpdateCargoItemInput,
 } from '@vms/shared';
 
+import { normalizePage, normalizePageSize } from '../../shared/pagination.js';
+
 import { CargoItemsAuditService } from './audit.service.js';
 import { toCargoItemRecord } from './cargo-item.mapper.js';
 import { CARGO_ITEMS_REPOSITORY, type CargoItemsRepository } from './cargo-items.repository.js';
@@ -41,8 +43,8 @@ export class CargoItemsService {
       ...defaultQuery,
       ...query,
       search: query.search?.trim() ?? '',
-      page: query.page ?? defaultQuery.page,
-      pageSize: query.pageSize ?? defaultQuery.pageSize,
+      page: normalizePage(query.page, defaultQuery.page),
+      pageSize: normalizePageSize(query.pageSize, defaultQuery.pageSize),
       sortBy: query.sortBy ?? defaultQuery.sortBy,
       sortDirection: query.sortDirection ?? defaultQuery.sortDirection,
     };

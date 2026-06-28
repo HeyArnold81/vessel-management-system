@@ -8,6 +8,8 @@ import type {
   VesselRecord,
 } from '@vms/shared';
 
+import { normalizePage, normalizePageSize } from '../../shared/pagination.js';
+
 import { AuditService } from './audit.service.js';
 import { toVesselRecord } from './vessel.mapper.js';
 import { VESSELS_REPOSITORY, type VesselsRepository } from './vessels.repository.js';
@@ -40,8 +42,8 @@ export class VesselsService {
       ...query,
       search: query.search?.trim() ?? '',
       vesselType: query.vesselType?.trim() ?? '',
-      page: query.page ?? defaultQuery.page,
-      pageSize: query.pageSize ?? defaultQuery.pageSize,
+      page: normalizePage(query.page, defaultQuery.page),
+      pageSize: normalizePageSize(query.pageSize, defaultQuery.pageSize),
       sortBy: query.sortBy ?? defaultQuery.sortBy,
       sortDirection: query.sortDirection ?? defaultQuery.sortDirection,
     };

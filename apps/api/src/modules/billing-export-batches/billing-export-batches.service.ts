@@ -8,6 +8,8 @@ import type {
   UpdateBillingExportBatchInput,
 } from '@vms/shared';
 
+import { normalizePage, normalizePageSize } from '../../shared/pagination.js';
+
 import { BillingExportBatchesAuditService } from './audit.service.js';
 import { toBillingExportBatchRecord } from './billing-export-batch.mapper.js';
 import {
@@ -44,8 +46,8 @@ export class BillingExportBatchesService {
       ...defaultQuery,
       ...query,
       search: query.search?.trim() ?? '',
-      page: query.page ?? defaultQuery.page,
-      pageSize: query.pageSize ?? defaultQuery.pageSize,
+      page: normalizePage(query.page, defaultQuery.page),
+      pageSize: normalizePageSize(query.pageSize, defaultQuery.pageSize),
       sortBy: query.sortBy ?? defaultQuery.sortBy,
       sortDirection: query.sortDirection ?? defaultQuery.sortDirection,
     };

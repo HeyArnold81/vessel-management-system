@@ -15,6 +15,8 @@ import type {
   VesselCallRecord,
 } from '@vms/shared';
 
+import { normalizePage, normalizePageSize } from '../../shared/pagination.js';
+
 import { VesselCallsAuditService } from './audit.service.js';
 import { toVesselCallRecord } from './vessel-call.mapper.js';
 import { VESSEL_CALLS_REPOSITORY, type VesselCallsRepository } from './vessel-calls.repository.js';
@@ -48,8 +50,8 @@ export class VesselCallsService {
       ...defaultQuery,
       ...query,
       search: query.search?.trim() ?? '',
-      page: query.page ?? defaultQuery.page,
-      pageSize: query.pageSize ?? defaultQuery.pageSize,
+      page: normalizePage(query.page, defaultQuery.page),
+      pageSize: normalizePageSize(query.pageSize, defaultQuery.pageSize),
       sortBy: query.sortBy ?? defaultQuery.sortBy,
       sortDirection: query.sortDirection ?? defaultQuery.sortDirection,
     };

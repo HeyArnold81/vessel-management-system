@@ -9,6 +9,8 @@ import type {
   UserRecord,
 } from '@vms/shared';
 
+import { normalizePage, normalizePageSize } from '../../shared/pagination.js';
+
 import { UsersAuditService } from './audit.service.js';
 import { toUserRecord } from './user.mapper.js';
 import { USERS_REPOSITORY, type UsersRepository } from './users.repository.js';
@@ -39,8 +41,8 @@ export class UsersService {
       ...defaultQuery,
       ...query,
       search: query.search?.trim() ?? '',
-      page: query.page ?? defaultQuery.page,
-      pageSize: query.pageSize ?? defaultQuery.pageSize,
+      page: normalizePage(query.page, defaultQuery.page),
+      pageSize: normalizePageSize(query.pageSize, defaultQuery.pageSize),
       sortBy: query.sortBy ?? defaultQuery.sortBy,
       sortDirection: query.sortDirection ?? defaultQuery.sortDirection,
     };

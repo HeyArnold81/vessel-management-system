@@ -9,6 +9,8 @@ import type {
   UpdateMovementServiceInput,
 } from '@vms/shared';
 
+import { normalizePage, normalizePageSize } from '../../shared/pagination.js';
+
 import { MovementServicesAuditService } from './audit.service.js';
 import { toMovementServiceRecord } from './movement-service.mapper.js';
 import {
@@ -43,8 +45,8 @@ export class MovementServicesService {
     const normalizedQuery = {
       ...defaultQuery,
       ...query,
-      page: query.page ?? defaultQuery.page,
-      pageSize: query.pageSize ?? defaultQuery.pageSize,
+      page: normalizePage(query.page, defaultQuery.page),
+      pageSize: normalizePageSize(query.pageSize, defaultQuery.pageSize),
       sortBy: query.sortBy ?? defaultQuery.sortBy,
       sortDirection: query.sortDirection ?? defaultQuery.sortDirection,
     };

@@ -8,6 +8,8 @@ import type {
   UpdatePortInput,
 } from '@vms/shared';
 
+import { normalizePage, normalizePageSize } from '../../shared/pagination.js';
+
 import { PortsAuditService } from './audit.service.js';
 import { toPortRecord } from './port.mapper.js';
 import { PORTS_REPOSITORY, type PortsRepository } from './ports.repository.js';
@@ -40,8 +42,8 @@ export class PortsService {
       ...query,
       search: query.search?.trim() ?? '',
       countryId: query.countryId?.trim() ?? '',
-      page: query.page ?? defaultQuery.page,
-      pageSize: query.pageSize ?? defaultQuery.pageSize,
+      page: normalizePage(query.page, defaultQuery.page),
+      pageSize: normalizePageSize(query.pageSize, defaultQuery.pageSize),
       sortBy: query.sortBy ?? defaultQuery.sortBy,
       sortDirection: query.sortDirection ?? defaultQuery.sortDirection,
     };

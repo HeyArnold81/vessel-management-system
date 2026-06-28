@@ -8,6 +8,8 @@ import type {
   UpdateBerthInput,
 } from '@vms/shared';
 
+import { normalizePage, normalizePageSize } from '../../shared/pagination.js';
+
 import { BerthsAuditService } from './audit.service.js';
 import { toBerthRecord } from './berth.mapper.js';
 import { BERTHS_REPOSITORY, type BerthsRepository } from './berths.repository.js';
@@ -40,8 +42,8 @@ export class BerthsService {
       ...query,
       search: query.search?.trim() ?? '',
       terminalId: query.terminalId?.trim() ?? '',
-      page: query.page ?? defaultQuery.page,
-      pageSize: query.pageSize ?? defaultQuery.pageSize,
+      page: normalizePage(query.page, defaultQuery.page),
+      pageSize: normalizePageSize(query.pageSize, defaultQuery.pageSize),
       sortBy: query.sortBy ?? defaultQuery.sortBy,
       sortDirection: query.sortDirection ?? defaultQuery.sortDirection,
     };

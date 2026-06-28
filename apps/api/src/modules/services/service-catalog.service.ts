@@ -8,6 +8,8 @@ import type {
   UpdateServiceCatalogInput,
 } from '@vms/shared';
 
+import { normalizePage, normalizePageSize } from '../../shared/pagination.js';
+
 import { ServiceCatalogAuditService } from './audit.service.js';
 import { toServiceCatalogRecord } from './service-catalog.mapper.js';
 import {
@@ -44,8 +46,8 @@ export class ServiceCatalogService {
       ...defaultQuery,
       ...query,
       search: query.search?.trim() ?? '',
-      page: query.page ?? defaultQuery.page,
-      pageSize: query.pageSize ?? defaultQuery.pageSize,
+      page: normalizePage(query.page, defaultQuery.page),
+      pageSize: normalizePageSize(query.pageSize, defaultQuery.pageSize),
       sortBy: query.sortBy ?? defaultQuery.sortBy,
       sortDirection: query.sortDirection ?? defaultQuery.sortDirection,
     };

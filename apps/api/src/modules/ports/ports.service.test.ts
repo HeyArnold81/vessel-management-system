@@ -47,6 +47,18 @@ describe('PortsService', () => {
     });
   });
 
+  it('normalizes string pagination values before querying the repository', async () => {
+    const repository = buildRepository();
+    const service = new PortsService(repository, { record: vi.fn() });
+
+    await service.list(tenantId, { page: '1', pageSize: '10' } as never);
+
+    expect(repository.findPage).toHaveBeenCalledWith(
+      tenantId,
+      expect.objectContaining({ page: 1, pageSize: 10 }),
+    );
+  });
+
   it('rejects duplicate UN/LOCODE values on create', async () => {
     const service = new PortsService(
       buildRepository({ findByUnlocode: vi.fn().mockResolvedValue(buildPort()) }),
