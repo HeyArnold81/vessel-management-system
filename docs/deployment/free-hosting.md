@@ -96,9 +96,10 @@ Create a Vercel project from this repository.
 Use:
 
 - Framework: Next.js
-- Root directory: repository root
-- Build command: `npm --workspace @vms/web run build`
+- Root directory: repository root, not `apps/web`
+- Build command: `npm run build:web`
 - Install command: `npm ci`
+- Output directory: `apps/web/.next`
 
 Set environment variables:
 
