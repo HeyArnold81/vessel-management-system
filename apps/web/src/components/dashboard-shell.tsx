@@ -1,32 +1,48 @@
-import { dashboardMetrics, productName } from '@vms/shared';
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+
+import {
+  dashboardMetrics,
+  productName,
+  type DashboardMetric,
+  type ReportActivityItem,
+  type ReportsOverviewRecord,
+} from '@vms/shared';
+
+import { getReportsOverview } from '@/features/reports/api';
+import { ApiClientError } from '@/lib/api/http';
 
 import { MetricCard } from './metric-card';
 import { OperationsTimeline } from './operations-timeline';
 
-const operations = [
-  {
-    time: '06:30',
-    title: 'MV Atlantic Meridian inbound pilotage',
-    detail: 'Pilot assigned, two tugs scheduled, berth B-14 confirmed.',
-  },
-  {
-    time: '09:10',
-    title: 'Northern Star cargo operations',
-    detail: 'Bulk discharge at 62% completion with no reported delays.',
-  },
-  {
-    time: '13:45',
-    title: 'Berth C-02 conflict review',
-    detail: 'ETA change overlaps a planned shift movement by 35 minutes.',
-  },
-  {
-    time: '17:20',
-    title: 'Invoice batch approval',
-    detail: 'Nine completed service orders ready for finance approval.',
-  },
-];
-
 export function DashboardShell() {
+  const [overview, setOverview] = useState<ReportsOverviewRecord | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadOverview() {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        setOverview(await getReportsOverview({}));
+      } catch (caught) {
+        setError(
+          caught instanceof ApiClientError ? caught.message : 'Unable to load command center data.',
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    void loadOverview();
+  }, []);
+
+  const metrics = useMemo(() => toDashboardMetrics(overview), [overview]);
+  const operations = useMemo(() => toOperations(overview), [overview]);
+
   return (
     <main className="min-h-screen bg-surface">
       <div className="mx-auto flex w-full max-w-7xl flex-col px-4 py-4 sm:px-6 lg:px-8">
@@ -43,17 +59,36 @@ export function DashboardShell() {
           </div>
         </header>
 
+        {error ? (
+          <div
+            role="alert"
+            className="mt-5 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800"
+          >
+            {error}
+          </div>
+        ) : null}
+
         <section
           className="grid gap-4 py-6 sm:grid-cols-2 xl:grid-cols-4"
           aria-label="Operations metrics"
         >
           {dashboardMetrics.map((metric) => (
-            <MetricCard key={metric.label} metric={metric} />
+            <MetricCard
+              key={metric.label}
+              metric={metrics.find((liveMetric) => liveMetric.label === metric.label) ?? metric}
+            />
           ))}
         </section>
 
         <section className="grid gap-6 lg:grid-cols-[1.35fr_0.65fr]">
-          <OperationsTimeline operations={operations} />
+          <OperationsTimeline
+            operations={operations}
+            emptyMessage={
+              isLoading
+                ? 'Loading live records...'
+                : 'No active movement, billing, or arrival records need attention.'
+            }
+          />
 
           <aside className="rounded-lg border border-slate-200 bg-white p-5 shadow-panel">
             <h2 className="text-lg font-semibold text-ink">Operational controls</h2>
@@ -68,6 +103,142 @@ export function DashboardShell() {
       </div>
     </main>
   );
+}
+
+function toDashboardMetrics(overview: ReportsOverviewRecord | null): readonly DashboardMetric[] {
+  if (!overview) {
+    return dashboardMetrics;
+  }
+
+  const activeCalls = countByKeys(overview.operations.vesselCallsByStatus, [
+    'planned',
+    'expected',
+    'arrived',
+    'alongside',
+  ]);
+  const activeMovements = countByKeys(overview.operations.movementsByStatus, [
+    'planned',
+    'scheduled',
+    'in_progress',
+  ]);
+  const pendingServices = countByKeys(overview.billing.billableServicesByStatus, [
+    'requested',
+    'scheduled',
+    'in_progress',
+    'on_hold',
+  ]);
+  const berthConflicts = countBerthConflicts([
+    ...overview.operations.upcomingArrivals,
+    ...overview.operations.upcomingDepartures,
+  ]);
+  const billingReady = getMetricValue(overview.billing.metrics, 'pending_billing');
+
+  return [
+    {
+      label: 'Active port calls',
+      value: String(activeCalls),
+      status: activeCalls > 0 ? 'in_progress' : 'completed',
+      trend: `${overview.operations.upcomingArrivals.length} arrivals and ${overview.operations.upcomingDepartures.length} departures on the board`,
+    },
+    {
+      label: 'Berth conflicts',
+      value: String(berthConflicts),
+      status: berthConflicts > 0 ? 'attention' : 'completed',
+      trend:
+        berthConflicts > 0
+          ? 'Potential berth timing overlaps need review'
+          : 'No berth timing overlaps in the active board',
+    },
+    {
+      label: 'Services pending',
+      value: String(pendingServices + activeMovements),
+      status: pendingServices + activeMovements > 0 ? 'planned' : 'completed',
+      trend: `${pendingServices} billable services and ${activeMovements} movements pending or active`,
+    },
+    {
+      label: 'Invoices ready',
+      value: String(billingReady),
+      status: billingReady > 0 ? 'attention' : 'completed',
+      trend: `${billingReady} billing events ready, draft, or on hold`,
+    },
+  ];
+}
+
+function toOperations(overview: ReportsOverviewRecord | null) {
+  if (!overview) {
+    return [];
+  }
+
+  return [
+    ...overview.operations.upcomingArrivals.map((item) => toOperation(item, 'Arrival')),
+    ...overview.operations.upcomingDepartures.map((item) => toOperation(item, 'Departure')),
+    ...overview.billing.pendingBillingEvents.map((item) => toOperation(item, 'Billing')),
+    ...overview.billing.failedBillingEvents.map((item) => toOperation(item, 'Exception')),
+  ]
+    .sort((left, right) => left.sortKey.localeCompare(right.sortKey))
+    .slice(0, 8)
+    .map(({ sortKey: _sortKey, ...operation }) => operation);
+}
+
+function toOperation(item: ReportActivityItem, category: string) {
+  const occurredAt = item.occurredAt ? new Date(item.occurredAt) : null;
+
+  return {
+    sortKey: item.occurredAt ?? item.reference,
+    time: occurredAt
+      ? occurredAt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+      : '--:--',
+    title: `${category}: ${item.reference}`,
+    detail: `${toTitleCase(item.status)}${item.berthId ? `, berth ${item.berthId}` : ''}`,
+  };
+}
+
+function countByKeys(
+  items: ReportsOverviewRecord['operations']['vesselCallsByStatus'],
+  keys: string[],
+) {
+  return items
+    .filter((item) => keys.includes(item.key))
+    .reduce((total, item) => total + item.count, 0);
+}
+
+function getMetricValue(items: ReportsOverviewRecord['billing']['metrics'], key: string) {
+  return items.find((item) => item.key === key)?.value ?? 0;
+}
+
+function countBerthConflicts(items: readonly ReportActivityItem[]) {
+  const activities = items
+    .filter((item) => item.berthId && item.occurredAt)
+    .map((item) => ({
+      berthId: item.berthId,
+      occurredAt: new Date(item.occurredAt as string).getTime(),
+    }))
+    .filter((item) => Number.isFinite(item.occurredAt))
+    .sort((left, right) =>
+      left.berthId === right.berthId
+        ? left.occurredAt - right.occurredAt
+        : String(left.berthId).localeCompare(String(right.berthId)),
+    );
+
+  return activities.reduce((total, activity, index) => {
+    const previous = activities[index - 1];
+
+    if (!previous || previous.berthId !== activity.berthId) {
+      return total;
+    }
+
+    const minutesBetween = Math.abs(activity.occurredAt - previous.occurredAt) / 60000;
+
+    return minutesBetween <= 60 ? total + 1 : total;
+  }, 0);
+}
+
+function toTitleCase(value: string) {
+  return value
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map((part) => part[0]?.toUpperCase() + part.slice(1))
+    .join(' ');
 }
 
 function ControlRow({ label, value }: Readonly<{ label: string; value: string }>) {

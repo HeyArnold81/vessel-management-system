@@ -92,6 +92,10 @@ export function BerthsPage() {
   }
 
   async function removeBerth(berth: BerthRecord) {
+    if (!window.confirm(`Delete berth ${berth.name}? This action cannot be undone.`)) {
+      return;
+    }
+
     setError(null);
 
     try {

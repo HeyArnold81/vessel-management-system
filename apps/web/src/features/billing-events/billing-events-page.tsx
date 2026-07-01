@@ -131,6 +131,14 @@ export function BillingEventsPage() {
   }
 
   async function rejectBillingEvent(billingEvent: BillingEventRecord) {
+    if (
+      !window.confirm(
+        `Reject billing event ${billingEvent.eventReference}? This action cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+
     setError(null);
 
     try {

@@ -112,6 +112,14 @@ export function MovementsPage() {
   }
 
   async function removeMovement(movement: MovementRecord) {
+    if (
+      !window.confirm(
+        `Delete movement ${movement.movementReference}? This action cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+
     setError(null);
 
     try {

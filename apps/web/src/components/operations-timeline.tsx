@@ -6,8 +6,10 @@ type Operation = {
 
 export function OperationsTimeline({
   operations,
+  emptyMessage = 'No active operational records.',
 }: Readonly<{
   operations: readonly Operation[];
+  emptyMessage?: string;
 }>) {
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-panel">
@@ -20,20 +22,26 @@ export function OperationsTimeline({
         </div>
       </div>
 
-      <ol className="mt-5 divide-y divide-slate-100">
-        {operations.map((operation) => (
-          <li
-            key={`${operation.time}-${operation.title}`}
-            className="grid gap-3 py-4 sm:grid-cols-[5rem_1fr]"
-          >
-            <time className="text-sm font-semibold text-harbor">{operation.time}</time>
-            <div>
-              <h3 className="text-base font-semibold text-ink">{operation.title}</h3>
-              <p className="mt-1 text-sm leading-6 text-steel">{operation.detail}</p>
-            </div>
-          </li>
-        ))}
-      </ol>
+      {operations.length > 0 ? (
+        <ol className="mt-5 divide-y divide-slate-100">
+          {operations.map((operation) => (
+            <li
+              key={`${operation.time}-${operation.title}`}
+              className="grid gap-3 py-4 sm:grid-cols-[5rem_1fr]"
+            >
+              <time className="text-sm font-semibold text-harbor">{operation.time}</time>
+              <div>
+                <h3 className="text-base font-semibold text-ink">{operation.title}</h3>
+                <p className="mt-1 text-sm leading-6 text-steel">{operation.detail}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className="mt-5 rounded-md border border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-steel">
+          {emptyMessage}
+        </p>
+      )}
     </section>
   );
 }

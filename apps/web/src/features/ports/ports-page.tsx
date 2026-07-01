@@ -92,6 +92,10 @@ export function PortsPage() {
   }
 
   async function removePort(port: PortRecord) {
+    if (!window.confirm(`Delete port ${port.name}? This action cannot be undone.`)) {
+      return;
+    }
+
     setError(null);
 
     try {

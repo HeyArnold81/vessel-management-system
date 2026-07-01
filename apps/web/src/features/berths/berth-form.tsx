@@ -1,6 +1,6 @@
 'use client';
 
-import { type FormEvent, useMemo, useState } from 'react';
+import { type FormEvent, useEffect, useMemo, useState } from 'react';
 
 import type { BerthRecord, BerthStatus, CreateBerthInput } from '@vms/shared';
 import { berthStatuses } from '@vms/shared';
@@ -25,6 +25,10 @@ export function BerthForm({ berth, isSubmitting, onSubmit, onCancel }: BerthForm
     [berth],
   );
   const [values, setValues] = useState(initialValues);
+
+  useEffect(() => {
+    setValues(initialValues);
+  }, [initialValues]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

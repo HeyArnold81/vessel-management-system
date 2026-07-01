@@ -136,6 +136,14 @@ export function MovementServicesPage() {
   }
 
   async function removeMovementService(movementService: MovementServiceRecord) {
+    if (
+      !window.confirm(
+        `Cancel movement service for movement ${movementService.movementId}? This action cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+
     setError(null);
 
     try {

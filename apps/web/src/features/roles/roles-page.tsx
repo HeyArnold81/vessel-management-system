@@ -92,6 +92,10 @@ export function RolesPage() {
   }
 
   async function retireRole(role: RoleRecord) {
+    if (!window.confirm(`Retire role ${role.name}? This action cannot be undone.`)) {
+      return;
+    }
+
     setError(null);
 
     try {

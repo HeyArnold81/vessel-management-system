@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { VesselCallsPage } from './vessel-calls-page';
@@ -12,7 +12,7 @@ describe('VesselCallsPage', () => {
     vi.restoreAllMocks();
   });
 
-  it('renders vessel calls returned by the API', async () => {
+  function mockVesselCallApis() {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = String(input);
 
@@ -83,11 +83,30 @@ describe('VesselCallsPage', () => {
         meta: { page: 1, pageSize: 10, totalItems: 1, totalPages: 1 },
       });
     });
+  }
+
+  it('renders vessel calls returned by the API', async () => {
+    mockVesselCallApis();
 
     render(<VesselCallsPage />);
 
     await waitFor(() => expect(screen.getByText('CALL-2026-0001')).toBeInTheDocument());
     expect(screen.getByText('MV Enterprise (9341234)')).toBeInTheDocument();
     expect(screen.getByText('Felixstowe (GBFXT)')).toBeInTheDocument();
+  });
+
+  it('opens the vessel call editor from the workspace action', async () => {
+    mockVesselCallApis();
+
+    render(<VesselCallsPage />);
+
+    await screen.findByText('CALL-2026-0001');
+
+    expect(screen.queryByRole('button', { name: 'Create call' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'New vessel call' }));
+
+    expect(screen.getByRole('heading', { name: 'New vessel call' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create call' })).toBeInTheDocument();
   });
 });

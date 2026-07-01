@@ -135,6 +135,12 @@ export function BillingExportBatchesPage() {
   }
 
   async function cancelBatch(batch: BillingExportBatchRecord) {
+    if (
+      !window.confirm(`Cancel export batch ${batch.batchReference}? This action cannot be undone.`)
+    ) {
+      return;
+    }
+
     setError(null);
 
     try {

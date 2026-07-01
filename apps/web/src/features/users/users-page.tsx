@@ -125,6 +125,10 @@ export function UsersPage() {
   }
 
   async function removeRole(user: UserRecord, roleId: string) {
+    if (!window.confirm(`Remove this role from ${user.email}?`)) {
+      return;
+    }
+
     setError(null);
 
     try {
@@ -136,6 +140,10 @@ export function UsersPage() {
   }
 
   async function deactivate(user: UserRecord) {
+    if (!window.confirm(`Deactivate user ${user.email}? They will lose application access.`)) {
+      return;
+    }
+
     setError(null);
 
     try {

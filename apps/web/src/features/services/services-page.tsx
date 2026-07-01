@@ -100,6 +100,10 @@ export function ServicesPage() {
   }
 
   async function removeService(service: ServiceCatalogRecord) {
+    if (!window.confirm(`Delete service ${service.name}? This action cannot be undone.`)) {
+      return;
+    }
+
     setError(null);
 
     try {

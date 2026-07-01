@@ -92,6 +92,10 @@ export function VesselsPage() {
   }
 
   async function removeVessel(vessel: VesselRecord) {
+    if (!window.confirm(`Delete vessel ${vessel.name}? This action cannot be undone.`)) {
+      return;
+    }
+
     setError(null);
 
     try {

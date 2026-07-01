@@ -100,6 +100,10 @@ export function CargoPage() {
   }
 
   async function removeCargoItem(cargoItem: CargoItemRecord) {
+    if (!window.confirm(`Delete cargo ${cargoItem.name}? This action cannot be undone.`)) {
+      return;
+    }
+
     setError(null);
 
     try {
