@@ -17,6 +17,7 @@ import { ServicesModule } from './modules/services/services.module.js';
 import { UsersModule } from './modules/users/users.module.js';
 import { VesselCallsModule } from './modules/vessel-calls/vessel-calls.module.js';
 import { VesselsModule } from './modules/vessels/vessels.module.js';
+import { AppController } from './app.controller.js';
 
 @Module({
   imports: [
@@ -38,5 +39,6 @@ import { VesselsModule } from './modules/vessels/vessels.module.js';
     ReportsModule,
     AiAssistantModule,
   ],
+  controllers: [AppController],
 })
 export class AppModule {}
