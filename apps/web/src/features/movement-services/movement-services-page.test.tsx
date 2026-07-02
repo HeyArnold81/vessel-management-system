@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { MovementServicesPage } from './movement-services-page';
@@ -12,7 +12,7 @@ describe('MovementServicesPage', () => {
     vi.restoreAllMocks();
   });
 
-  it('renders movement services returned by the API', async () => {
+  function mockMovementServiceApis() {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = String(input);
 
@@ -82,6 +82,10 @@ describe('MovementServicesPage', () => {
         meta: { page: 1, pageSize: 10, totalItems: 1, totalPages: 1 },
       });
     });
+  }
+
+  it('renders movement services returned by the API', async () => {
+    mockMovementServiceApis();
 
     render(<MovementServicesPage />);
 
@@ -90,5 +94,33 @@ describe('MovementServicesPage', () => {
     );
     expect(screen.getAllByText('MOVE-2026-0001 · arrival')[0]).toBeInTheDocument();
     expect(screen.getByText('1 job')).toBeInTheDocument();
+  });
+
+  it('opens the movement service editor from the workspace action', async () => {
+    mockMovementServiceApis();
+
+    render(<MovementServicesPage />);
+
+    await screen.findByText('Harbour Pilotage (PILOTAGE)');
+
+    expect(screen.queryAllByRole('button', { name: 'Attach service' })).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Attach service' }));
+
+    expect(screen.getByRole('heading', { name: 'Attach service' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Attach service' })).toHaveLength(2);
+  });
+
+  it('opens the movement service editor from the table row', async () => {
+    mockMovementServiceApis();
+
+    render(<MovementServicesPage />);
+
+    await screen.findByText('Harbour Pilotage (PILOTAGE)');
+
+    fireEvent.click(screen.getByRole('row', { name: /Harbour Pilotage/ }));
+
+    expect(screen.getByRole('heading', { name: 'Edit movement service' })).toBeInTheDocument();
+    expect(screen.getByDisplayValue('1')).toBeInTheDocument();
   });
 });

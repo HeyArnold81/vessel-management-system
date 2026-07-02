@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { MovementsPage } from './movements-page';
@@ -13,7 +13,7 @@ describe('MovementsPage', () => {
     vi.restoreAllMocks();
   });
 
-  it('renders movements returned by the API', async () => {
+  function mockMovementApis() {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = String(input);
 
@@ -67,11 +67,43 @@ describe('MovementsPage', () => {
         meta: { page: 1, pageSize: 10, totalItems: 1, totalPages: 1 },
       });
     });
+  }
+
+  it('renders movements returned by the API', async () => {
+    mockMovementApis();
 
     render(<MovementsPage />);
 
     await waitFor(() => expect(screen.getByText('MOVE-2026-0001')).toBeInTheDocument());
     expect(screen.getByText('CALL-2026-0001 · expected')).toBeInTheDocument();
     expect(screen.getAllByText('arrival')[0]).toBeInTheDocument();
+  });
+
+  it('opens the movement editor from the workspace action', async () => {
+    mockMovementApis();
+
+    render(<MovementsPage />);
+
+    await screen.findByText('MOVE-2026-0001');
+
+    expect(screen.queryByRole('button', { name: 'Create movement' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'New movement' }));
+
+    expect(screen.getByRole('heading', { name: 'New movement' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create movement' })).toBeInTheDocument();
+  });
+
+  it('opens the movement editor from the table row', async () => {
+    mockMovementApis();
+
+    render(<MovementsPage />);
+
+    await screen.findByText('MOVE-2026-0001');
+
+    fireEvent.click(screen.getByRole('row', { name: /MOVE-2026-0001/ }));
+
+    expect(screen.getByRole('heading', { name: 'Edit movement' })).toBeInTheDocument();
+    expect(screen.getByDisplayValue('MOVE-2026-0001')).toBeInTheDocument();
   });
 });
