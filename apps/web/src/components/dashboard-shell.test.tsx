@@ -70,6 +70,14 @@ describe('DashboardShell', () => {
     expect(screen.getByRole('heading', { name: 'Vessel Management System' })).toBeInTheDocument();
     expect(screen.getByText('Active port calls')).toBeInTheDocument();
     expect(await screen.findByText('Arrival: LIV-2026-0002')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Arrival: LIV-2026-0002' })).toHaveAttribute(
+      'href',
+      '/vessel-calls?search=LIV-2026-0002',
+    );
+    expect(screen.getByRole('link', { name: 'Billing: BILL-LIV-0003' })).toHaveAttribute(
+      'href',
+      '/billing-events?search=BILL-LIV-0003',
+    );
     expect(screen.getByText('1 arrivals and 0 departures on the board')).toBeInTheDocument();
     expect(screen.getByText('RBAC plus vessel-level policies')).toBeInTheDocument();
   });

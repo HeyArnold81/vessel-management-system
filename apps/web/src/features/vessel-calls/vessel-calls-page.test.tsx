@@ -18,7 +18,7 @@ describe('VesselCallsPage', () => {
   function mockVesselCallApis() {
     let serviceDeleted = false;
 
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const url = String(input);
 
       if (url.includes('/api/v1/vessels')) {
@@ -178,6 +178,8 @@ describe('VesselCallsPage', () => {
         meta: { page: 1, pageSize: 10, totalItems: 1, totalPages: 1 },
       });
     });
+
+    return fetchMock;
   }
 
   it('renders vessel calls returned by the API', async () => {
@@ -217,6 +219,24 @@ describe('VesselCallsPage', () => {
     expect(await screen.findByText('MOVE-2026-0001')).toBeInTheDocument();
     expect(screen.getByText('Harbour Pilotage (PILOTAGE)')).toBeInTheDocument();
     expect(screen.getByText('Vessel call -> movements -> movement services')).toBeInTheDocument();
+  });
+
+  it('loads vessel calls using the initial search value', async () => {
+    const fetchMock = mockVesselCallApis();
+
+    render(<VesselCallsPage initialSearch="CALL-2026-0001" />);
+
+    await screen.findByText('CALL-2026-0001');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/api/v1/vessel-calls?'),
+      expect.any(Object),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('search=CALL-2026-0001'),
+      expect.any(Object),
+    );
+    expect(screen.getByDisplayValue('CALL-2026-0001')).toBeInTheDocument();
   });
 
   it('opens movement and service actions from the operational chain', async () => {

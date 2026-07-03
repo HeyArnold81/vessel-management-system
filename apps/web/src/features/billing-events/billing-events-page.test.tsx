@@ -12,7 +12,7 @@ describe('BillingEventsPage', () => {
   });
 
   it('renders ERP billing events returned by the API', async () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = String(input);
 
       if (url.includes('/api/v1/movement-services')) {
@@ -71,9 +71,14 @@ describe('BillingEventsPage', () => {
       });
     });
 
-    render(<BillingEventsPage />);
+    render(<BillingEventsPage initialSearch="BILL-2026-0001" />);
 
     await waitFor(() => expect(screen.getByText('BILL-2026-0001')).toBeInTheDocument());
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('search=BILL-2026-0001'),
+      expect.any(Object),
+    );
+    expect(screen.getByDisplayValue('BILL-2026-0001')).toBeInTheDocument();
     expect(screen.getAllByText('ready')[0]).toBeInTheDocument();
     expect(screen.getByText('SAP')).toBeInTheDocument();
     expect(screen.getAllByText('1 job · completed')[0]).toBeInTheDocument();

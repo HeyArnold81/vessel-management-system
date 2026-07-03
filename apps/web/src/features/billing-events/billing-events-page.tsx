@@ -28,10 +28,14 @@ const initialPage: PaginatedResponse<BillingEventRecord> = {
   meta: { page: 1, pageSize: 10, totalItems: 0, totalPages: 1 },
 };
 
-export function BillingEventsPage() {
+type BillingEventsPageProps = {
+  readonly initialSearch?: string;
+};
+
+export function BillingEventsPage({ initialSearch = '' }: BillingEventsPageProps) {
   const [page, setPage] = useState(initialPage);
   const [movementServices, setMovementServices] = useState<readonly MovementServiceRecord[]>([]);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(initialSearch);
   const [status, setStatus] = useState<BillingEventStatus | ''>('');
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
@@ -78,6 +82,7 @@ export function BillingEventsPage() {
     async function loadInitialData() {
       setIsLoading(true);
       setError(null);
+      setSearch(initialSearch);
 
       try {
         const [movementServiceResult, billingEventResult] = await Promise.all([
@@ -92,6 +97,7 @@ export function BillingEventsPage() {
           listBillingEvents({
             page: 1,
             pageSize: 10,
+            search: initialSearch,
             sortBy: 'createdAt',
             sortDirection: 'desc',
           }),
@@ -109,7 +115,7 @@ export function BillingEventsPage() {
     }
 
     void loadInitialData();
-  }, []);
+  }, [initialSearch]);
 
   async function submitBillingEvent(input: CreateBillingEventInput | UpdateBillingEventInput) {
     setIsSubmitting(true);

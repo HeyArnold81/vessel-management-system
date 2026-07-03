@@ -170,17 +170,29 @@ function toOperations(overview: ReportsOverviewRecord | null) {
   }
 
   return [
-    ...overview.operations.upcomingArrivals.map((item) => toOperation(item, 'Arrival')),
-    ...overview.operations.upcomingDepartures.map((item) => toOperation(item, 'Departure')),
-    ...overview.billing.pendingBillingEvents.map((item) => toOperation(item, 'Billing')),
-    ...overview.billing.failedBillingEvents.map((item) => toOperation(item, 'Exception')),
+    ...overview.operations.upcomingArrivals.map((item) =>
+      toOperation(item, 'Arrival', `/vessel-calls?search=${encodeURIComponent(item.reference)}`),
+    ),
+    ...overview.operations.upcomingDepartures.map((item) =>
+      toOperation(item, 'Departure', `/vessel-calls?search=${encodeURIComponent(item.reference)}`),
+    ),
+    ...overview.billing.pendingBillingEvents.map((item) =>
+      toOperation(item, 'Billing', `/billing-events?search=${encodeURIComponent(item.reference)}`),
+    ),
+    ...overview.billing.failedBillingEvents.map((item) =>
+      toOperation(
+        item,
+        'Exception',
+        `/billing-events?search=${encodeURIComponent(item.reference)}`,
+      ),
+    ),
   ]
     .sort((left, right) => left.sortKey.localeCompare(right.sortKey))
     .slice(0, 8)
     .map(({ sortKey: _sortKey, ...operation }) => operation);
 }
 
-function toOperation(item: ReportActivityItem, category: string) {
+function toOperation(item: ReportActivityItem, category: string, href: string) {
   const occurredAt = item.occurredAt ? new Date(item.occurredAt) : null;
 
   return {
@@ -190,6 +202,7 @@ function toOperation(item: ReportActivityItem, category: string) {
       : '--:--',
     title: `${category}: ${item.reference}`,
     detail: `${toTitleCase(item.status)}${item.berthId ? `, berth ${item.berthId}` : ''}`,
+    href,
   };
 }
 

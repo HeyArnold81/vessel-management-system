@@ -1,7 +1,10 @@
+import Link from 'next/link';
+
 type Operation = {
   readonly time: string;
   readonly title: string;
   readonly detail: string;
+  readonly href?: string;
 };
 
 export function OperationsTimeline({
@@ -31,7 +34,18 @@ export function OperationsTimeline({
             >
               <time className="text-sm font-semibold text-harbor">{operation.time}</time>
               <div>
-                <h3 className="text-base font-semibold text-ink">{operation.title}</h3>
+                <h3 className="text-base font-semibold text-ink">
+                  {operation.href ? (
+                    <Link
+                      href={operation.href}
+                      className="rounded-sm hover:text-harbor focus:outline-none focus:ring-2 focus:ring-harbor/30"
+                    >
+                      {operation.title}
+                    </Link>
+                  ) : (
+                    operation.title
+                  )}
+                </h3>
                 <p className="mt-1 text-sm leading-6 text-steel">{operation.detail}</p>
               </div>
             </li>

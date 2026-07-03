@@ -53,7 +53,11 @@ const savedViews: readonly {
   { label: 'Departed', status: 'departed' },
 ];
 
-export function VesselCallsPage() {
+type VesselCallsPageProps = {
+  readonly initialSearch?: string;
+};
+
+export function VesselCallsPage({ initialSearch = '' }: VesselCallsPageProps) {
   const [page, setPage] = useState(initialPage);
   const [vessels, setVessels] = useState<readonly VesselRecord[]>([]);
   const [ports, setPorts] = useState<readonly PortRecord[]>([]);
@@ -63,7 +67,7 @@ export function VesselCallsPage() {
   const [linkedMovementServices, setLinkedMovementServices] = useState<
     readonly MovementServiceRecord[]
   >([]);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(initialSearch);
   const [status, setStatus] = useState<VesselCallStatus | ''>('');
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
@@ -119,13 +123,20 @@ export function VesselCallsPage() {
     async function loadInitialData() {
       setIsLoading(true);
       setError(null);
+      setSearch(initialSearch);
 
       try {
         const [vesselResult, portResult, serviceResult, callResult] = await Promise.all([
           listVessels({ page: 1, pageSize: 100, status: 'active', sortBy: 'name' }),
           listPorts({ page: 1, pageSize: 100, status: 'active', sortBy: 'name' }),
           listServices({ page: 1, pageSize: 100, status: 'active', sortBy: 'name' }),
-          listVesselCalls({ page: 1, pageSize: 10, sortBy: 'eta', sortDirection: 'asc' }),
+          listVesselCalls({
+            page: 1,
+            pageSize: 10,
+            search: initialSearch,
+            sortBy: 'eta',
+            sortDirection: 'asc',
+          }),
         ]);
 
         setVessels(vesselResult.data);
@@ -142,7 +153,7 @@ export function VesselCallsPage() {
     }
 
     void loadInitialData();
-  }, []);
+  }, [initialSearch]);
 
   async function submitVesselCall(input: CreateVesselCallInput) {
     setIsSubmitting(true);
