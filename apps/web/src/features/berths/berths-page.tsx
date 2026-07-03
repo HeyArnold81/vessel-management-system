@@ -1,10 +1,15 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import type { KeyboardEvent } from 'react';
 
 import type { BerthRecord, BerthStatus, CreateBerthInput, PaginatedResponse } from '@vms/shared';
 import { berthStatuses } from '@vms/shared';
 
+import { EmptyState } from '@/components/ui/empty-state';
+import { PageHeader } from '@/components/ui/page-header';
+import { SlideOver } from '@/components/ui/slide-over';
+import { StatusBadge } from '@/components/ui/status-badge';
 import { ApiClientError } from '@/lib/api/http';
 
 import { createBerth, deleteBerth, listBerths, updateBerth } from './api';
@@ -23,8 +28,10 @@ export function BerthsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editingBerth, setEditingBerth] = useState<BerthRecord | undefined>();
   const [error, setError] = useState<string | null>(null);
+  const currentPageSummary = useMemo(() => buildBerthSummary(page.data), [page.data]);
 
   async function loadBerths(nextPage = currentPage) {
     setIsLoading(true);
@@ -82,6 +89,7 @@ export function BerthsPage() {
       } else {
         await createBerth(input);
       }
+      setIsEditorOpen(false);
       setEditingBerth(undefined);
       await loadBerths(1);
     } catch (caught) {
@@ -106,21 +114,55 @@ export function BerthsPage() {
     }
   }
 
+  function openCreatePanel() {
+    setEditingBerth(undefined);
+    setIsEditorOpen(true);
+  }
+
+  function openEditPanel(berth: BerthRecord) {
+    setEditingBerth(berth);
+    setIsEditorOpen(true);
+  }
+
+  function closeEditor() {
+    setIsEditorOpen(false);
+    setEditingBerth(undefined);
+  }
+
+  function handleBerthRowKeyDown(event: KeyboardEvent<HTMLTableRowElement>, berth: BerthRecord) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      openEditPanel(berth);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-surface">
       <div className="mx-auto grid w-full max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:px-8">
-        <header className="flex flex-col gap-3 border-b border-slate-200 pb-5 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-harbor">
-              Berth registry
-            </p>
-            <h1 className="mt-1 text-3xl font-semibold text-ink">Berths</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-steel">
-              Manage berth master data used by port calls, berth stays, draft checks, and capacity
-              planning.
-            </p>
-          </div>
-        </header>
+        <PageHeader
+          eyebrow="Berth registry"
+          title="Berths"
+          description="Manage berth master data used by port calls, berth stays, draft checks, and capacity planning."
+          metadata={
+            <div className="flex flex-wrap gap-2 text-xs text-steel">
+              <span className="rounded-full border border-line bg-panel px-2.5 py-1">
+                {page.meta.totalItems} total berths
+              </span>
+              <span className="rounded-full border border-line bg-panel px-2.5 py-1">
+                Sorted by name
+              </span>
+            </div>
+          }
+          actions={
+            <button
+              type="button"
+              onClick={openCreatePanel}
+              className="rounded-md bg-harbor px-4 py-2 text-sm font-semibold text-white shadow-panel"
+            >
+              New berth
+            </button>
+          }
+        />
 
         {error ? (
           <div
@@ -131,26 +173,45 @@ export function BerthsPage() {
           </div>
         ) : null}
 
-        <section className="grid gap-6 lg:grid-cols-[0.85fr_1.15fr]">
-          <BerthForm
-            berth={editingBerth}
-            isSubmitting={isSubmitting}
-            onSubmit={submitBerth}
-            onCancel={editingBerth ? () => setEditingBerth(undefined) : undefined}
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4" aria-label="Berth KPIs">
+          <KpiCard label="Visible berths" value={String(page.data.length)} detail="Current board" />
+          <KpiCard
+            label="Active"
+            value={String(currentPageSummary.active)}
+            detail="Available for planning"
           />
+          <KpiCard
+            label="With length limits"
+            value={String(currentPageSummary.withLength)}
+            detail="LOA constrained"
+          />
+          <KpiCard
+            label="With draft limits"
+            value={String(currentPageSummary.withDraft)}
+            detail="Draft constrained"
+          />
+        </section>
 
-          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-panel">
-            <div className="grid gap-3 md:grid-cols-[1fr_10rem_1fr_auto]">
+        <section className="rounded-lg border border-line bg-panel shadow-panel">
+          <div className="border-b border-line px-5 py-4">
+            <div>
+              <h2 className="text-base font-semibold text-ink">Berth board</h2>
+              <p className="mt-1 text-sm text-steel">
+                Search, filter, and maintain berth planning master data.
+              </p>
+            </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-[1fr_10rem_1fr_auto]">
               <input
                 placeholder="Search berths"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                className="rounded-md border border-slate-300 px-3 py-2"
+                className="rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink"
               />
               <select
                 value={status}
                 onChange={(event) => setStatus(event.target.value as BerthStatus | '')}
-                className="rounded-md border border-slate-300 px-3 py-2"
+                className="rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink"
                 aria-label="Filter by status"
               >
                 <option value="">Any status</option>
@@ -164,7 +225,7 @@ export function BerthsPage() {
                 placeholder="Terminal ID"
                 value={terminalId}
                 onChange={(event) => setTerminalId(event.target.value)}
-                className="rounded-md border border-slate-300 px-3 py-2"
+                className="rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink"
               />
               <button
                 onClick={() => void loadBerths(1)}
@@ -173,37 +234,53 @@ export function BerthsPage() {
                 Apply
               </button>
             </div>
+          </div>
 
-            <div className="mt-5 overflow-x-auto">
+          <div className="overflow-x-auto">
+            {page.data.length > 0 ? (
               <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
-                <thead>
+                <thead className="bg-surface">
                   <tr className="text-xs uppercase tracking-wide text-steel">
-                    <th className="py-3 pr-4">Name</th>
+                    <th className="px-5 py-3 pr-4">Name</th>
                     <th className="py-3 pr-4">Code</th>
                     <th className="py-3 pr-4">Max length</th>
                     <th className="py-3 pr-4">Max draft</th>
                     <th className="py-3 pr-4">Status</th>
-                    <th className="py-3 text-right">Actions</th>
+                    <th className="px-5 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {page.data.map((berth) => (
-                    <tr key={berth.id}>
-                      <td className="py-3 pr-4 font-semibold text-ink">{berth.name}</td>
+                    <tr
+                      key={berth.id}
+                      tabIndex={0}
+                      onClick={() => openEditPanel(berth)}
+                      onKeyDown={(event) => handleBerthRowKeyDown(event, berth)}
+                      className="cursor-pointer hover:bg-surface/70 focus:bg-surface focus:outline-none focus:ring-1 focus:ring-inset focus:ring-harbor/30"
+                    >
+                      <td className="px-5 py-3 pr-4 font-semibold text-ink">{berth.name}</td>
                       <td className="py-3 pr-4 text-steel">{berth.code}</td>
                       <td className="py-3 pr-4 text-steel">{berth.maxLengthM ?? '-'}</td>
                       <td className="py-3 pr-4 text-steel">{berth.maxDraftM ?? '-'}</td>
-                      <td className="py-3 pr-4 text-steel">{berth.status}</td>
-                      <td className="py-3 text-right">
+                      <td className="py-3 pr-4">
+                        <StatusBadge status={berth.status} />
+                      </td>
+                      <td className="px-5 py-3 text-right">
                         <div className="flex justify-end gap-2">
                           <button
-                            onClick={() => setEditingBerth(berth)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openEditPanel(berth);
+                            }}
                             className="rounded-md border border-slate-300 px-3 py-1.5 font-semibold text-steel"
                           >
                             Edit
                           </button>
                           <button
-                            onClick={() => void removeBerth(berth)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void removeBerth(berth);
+                            }}
                             className="rounded-md border border-red-200 px-3 py-1.5 font-semibold text-red-700"
                           >
                             Delete
@@ -214,41 +291,81 @@ export function BerthsPage() {
                   ))}
                 </tbody>
               </table>
+            ) : null}
 
-              {!isLoading && page.data.length === 0 ? (
-                <p className="py-8 text-center text-sm text-steel">
-                  No berths match the current filters.
-                </p>
-              ) : null}
-              {isLoading ? (
-                <p className="py-8 text-center text-sm text-steel">Loading berths...</p>
-              ) : null}
-            </div>
-
-            <div className="mt-5 flex flex-wrap items-center justify-between gap-3 text-sm text-steel">
-              <span>
-                Page {page.meta.page} of {page.meta.totalPages} · {page.meta.totalItems} berths
-              </span>
-              <div className="flex gap-2">
-                <button
-                  disabled={page.meta.page <= 1}
-                  onClick={() => void loadBerths(page.meta.page - 1)}
-                  className="rounded-md border border-slate-300 px-3 py-2 disabled:opacity-50"
-                >
-                  Previous
-                </button>
-                <button
-                  disabled={page.meta.page >= page.meta.totalPages}
-                  onClick={() => void loadBerths(page.meta.page + 1)}
-                  className="rounded-md border border-slate-300 px-3 py-2 disabled:opacity-50"
-                >
-                  Next
-                </button>
+            {!isLoading && page.data.length === 0 ? (
+              <div className="p-5">
+                <EmptyState
+                  title="No berths match this view"
+                  description="Adjust the filters or create a berth before assigning vessel calls."
+                />
               </div>
+            ) : null}
+            {isLoading ? (
+              <p className="py-8 text-center text-sm text-steel">Loading berths...</p>
+            ) : null}
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-5 py-4 text-sm text-steel">
+            <span>
+              Page {page.meta.page} of {page.meta.totalPages} · {page.meta.totalItems} berths
+            </span>
+            <div className="flex gap-2">
+              <button
+                disabled={currentPage <= 1}
+                onClick={() => void loadBerths(currentPage - 1)}
+                className="rounded-md border border-line px-3 py-1.5 disabled:opacity-50"
+              >
+                Previous
+              </button>
+              <button
+                disabled={currentPage >= page.meta.totalPages}
+                onClick={() => void loadBerths(currentPage + 1)}
+                className="rounded-md border border-line px-3 py-1.5 disabled:opacity-50"
+              >
+                Next
+              </button>
             </div>
           </div>
         </section>
       </div>
+
+      <SlideOver
+        isOpen={isEditorOpen}
+        title={editingBerth ? 'Edit berth' : 'New berth'}
+        description="Maintain berth planning data used by vessel calls, draft checks, and capacity planning."
+        onClose={closeEditor}
+      >
+        <BerthForm
+          key={editingBerth?.id ?? 'new-berth'}
+          berth={editingBerth}
+          isSubmitting={isSubmitting}
+          onSubmit={submitBerth}
+          onCancel={closeEditor}
+        />
+      </SlideOver>
     </main>
   );
+}
+
+function KpiCard({
+  label,
+  value,
+  detail,
+}: Readonly<{ label: string; value: string; detail: string }>) {
+  return (
+    <div className="rounded-lg border border-line bg-panel p-4 shadow-panel">
+      <p className="text-xs font-semibold uppercase tracking-wide text-steel">{label}</p>
+      <p className="mt-2 text-3xl font-semibold text-ink">{value}</p>
+      <p className="mt-1 text-sm text-steel">{detail}</p>
+    </div>
+  );
+}
+
+function buildBerthSummary(items: readonly BerthRecord[]) {
+  return {
+    active: items.filter((item) => item.status === 'active').length,
+    withLength: items.filter((item) => item.maxLengthM !== null).length,
+    withDraft: items.filter((item) => item.maxDraftM !== null).length,
+  };
 }
