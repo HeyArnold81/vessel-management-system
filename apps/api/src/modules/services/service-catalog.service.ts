@@ -8,7 +8,11 @@ import type {
   UpdateServiceCatalogInput,
 } from '@vms/shared';
 
-import { normalizePage, normalizePageSize } from '../../shared/pagination.js';
+import {
+  normalizeOptionalBoolean,
+  normalizePage,
+  normalizePageSize,
+} from '../../shared/pagination.js';
 
 import { ServiceCatalogAuditService } from './audit.service.js';
 import { toServiceCatalogRecord } from './service-catalog.mapper.js';
@@ -48,6 +52,7 @@ export class ServiceCatalogService {
       search: query.search?.trim() ?? '',
       page: normalizePage(query.page, defaultQuery.page),
       pageSize: normalizePageSize(query.pageSize, defaultQuery.pageSize),
+      isBillable: normalizeOptionalBoolean(query.isBillable),
       sortBy: query.sortBy ?? defaultQuery.sortBy,
       sortDirection: query.sortDirection ?? defaultQuery.sortDirection,
     };

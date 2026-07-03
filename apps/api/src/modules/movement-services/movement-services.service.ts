@@ -9,7 +9,11 @@ import type {
   UpdateMovementServiceInput,
 } from '@vms/shared';
 
-import { normalizePage, normalizePageSize } from '../../shared/pagination.js';
+import {
+  normalizeOptionalBoolean,
+  normalizePage,
+  normalizePageSize,
+} from '../../shared/pagination.js';
 
 import { MovementServicesAuditService } from './audit.service.js';
 import { toMovementServiceRecord } from './movement-service.mapper.js';
@@ -47,6 +51,7 @@ export class MovementServicesService {
       ...query,
       page: normalizePage(query.page, defaultQuery.page),
       pageSize: normalizePageSize(query.pageSize, defaultQuery.pageSize),
+      isBillable: normalizeOptionalBoolean(query.isBillable),
       sortBy: query.sortBy ?? defaultQuery.sortBy,
       sortDirection: query.sortDirection ?? defaultQuery.sortDirection,
     };

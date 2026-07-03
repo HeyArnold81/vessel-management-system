@@ -55,6 +55,18 @@ describe('MovementServicesService', () => {
     });
   });
 
+  it('normalizes string billable filters before querying the repository', async () => {
+    const repository = buildRepository();
+    const service = new MovementServicesService(repository, { record: vi.fn() });
+
+    await service.list(tenantId, { isBillable: 'true' } as never);
+
+    expect(repository.findPage).toHaveBeenCalledWith(
+      tenantId,
+      expect.objectContaining({ isBillable: true }),
+    );
+  });
+
   it('rejects completed time earlier than requested time', async () => {
     const service = new MovementServicesService(buildRepository(), { record: vi.fn() });
 

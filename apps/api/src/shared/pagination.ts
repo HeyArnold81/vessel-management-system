@@ -6,6 +6,22 @@ export function normalizePageSize(value: unknown, fallback: number, max = 100): 
   return Math.min(normalizePositiveInteger(value, fallback), max);
 }
 
+export function normalizeOptionalBoolean(value: unknown): boolean | undefined {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (value === 'true') {
+    return true;
+  }
+
+  if (value === 'false') {
+    return false;
+  }
+
+  return undefined;
+}
+
 function normalizePositiveInteger(value: unknown, fallback: number): number {
   const parsed =
     typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN;

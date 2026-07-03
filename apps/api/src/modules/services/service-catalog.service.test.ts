@@ -51,6 +51,18 @@ describe('ServiceCatalogService', () => {
     });
   });
 
+  it('normalizes string billable filters before querying the repository', async () => {
+    const repository = buildRepository();
+    const service = new ServiceCatalogService(repository, { record: vi.fn() });
+
+    await service.list(tenantId, { isBillable: 'false' } as never);
+
+    expect(repository.findPage).toHaveBeenCalledWith(
+      tenantId,
+      expect.objectContaining({ isBillable: false }),
+    );
+  });
+
   it('rejects duplicate service codes on create', async () => {
     const service = new ServiceCatalogService(
       buildRepository({ findByCode: vi.fn().mockResolvedValue(buildService()) }),
