@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import type { KeyboardEvent } from 'react';
 
 import type {
   BillingEventRecord,
@@ -12,12 +13,17 @@ import type {
 } from '@vms/shared';
 import { billingEventStatuses } from '@vms/shared';
 
-import { ApiClientError } from '@/lib/api/http';
+import { EmptyState } from '@/components/ui/empty-state';
+import { PageHeader } from '@/components/ui/page-header';
+import { SlideOver } from '@/components/ui/slide-over';
+import { StatusBadge } from '@/components/ui/status-badge';
 import { listMovementServices } from '@/features/movement-services/api';
+import { ApiClientError } from '@/lib/api/http';
 
 import {
   createBillingEvent,
   deleteBillingEvent,
+  getBillingEvent,
   listBillingEvents,
   updateBillingEvent,
 } from './api';
@@ -29,10 +35,11 @@ const initialPage: PaginatedResponse<BillingEventRecord> = {
 };
 
 type BillingEventsPageProps = {
+  readonly initialId?: string;
   readonly initialSearch?: string;
 };
 
-export function BillingEventsPage({ initialSearch = '' }: BillingEventsPageProps) {
+export function BillingEventsPage({ initialId = '', initialSearch = '' }: BillingEventsPageProps) {
   const [page, setPage] = useState(initialPage);
   const [movementServices, setMovementServices] = useState<readonly MovementServiceRecord[]>([]);
   const [search, setSearch] = useState(initialSearch);
@@ -40,6 +47,7 @@ export function BillingEventsPage({ initialSearch = '' }: BillingEventsPageProps
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editingBillingEvent, setEditingBillingEvent] = useState<BillingEventRecord | undefined>();
   const [error, setError] = useState<string | null>(null);
 
@@ -53,8 +61,12 @@ export function BillingEventsPage({ initialSearch = '' }: BillingEventsPageProps
       ),
     [movementServices],
   );
+  const currentPageSummary = useMemo(() => buildBillingSummary(page.data), [page.data]);
 
-  async function loadBillingEvents(nextPage = currentPage) {
+  async function loadBillingEvents(
+    nextPage = currentPage,
+    nextStatus: BillingEventStatus | '' = status,
+  ) {
     setIsLoading(true);
     setError(null);
 
@@ -63,7 +75,7 @@ export function BillingEventsPage({ initialSearch = '' }: BillingEventsPageProps
         page: nextPage,
         pageSize: 10,
         search,
-        status: status || undefined,
+        status: nextStatus || undefined,
         sortBy: 'createdAt',
         sortDirection: 'desc',
       });
@@ -94,17 +106,30 @@ export function BillingEventsPage({ initialSearch = '' }: BillingEventsPageProps
             sortBy: 'completedAt',
             sortDirection: 'desc',
           }),
-          listBillingEvents({
-            page: 1,
-            pageSize: 10,
-            search: initialSearch,
-            sortBy: 'createdAt',
-            sortDirection: 'desc',
-          }),
+          initialId
+            ? getBillingEvent(initialId)
+            : listBillingEvents({
+                page: 1,
+                pageSize: 10,
+                search: initialSearch,
+                sortBy: 'createdAt',
+                sortDirection: 'desc',
+              }),
         ]);
+        const nextPage =
+          'meta' in billingEventResult
+            ? billingEventResult
+            : {
+                data: [billingEventResult],
+                meta: { page: 1, pageSize: 1, totalItems: 1, totalPages: 1 },
+              };
 
         setMovementServices(movementServiceResult.data);
-        setPage(billingEventResult);
+        setPage(nextPage);
+        if (!('meta' in billingEventResult)) {
+          setEditingBillingEvent(billingEventResult);
+          setIsEditorOpen(true);
+        }
       } catch (caught) {
         setError(
           caught instanceof ApiClientError ? caught.message : 'Unable to load billing events.',
@@ -115,7 +140,7 @@ export function BillingEventsPage({ initialSearch = '' }: BillingEventsPageProps
     }
 
     void loadInitialData();
-  }, [initialSearch]);
+  }, [initialId, initialSearch]);
 
   async function submitBillingEvent(input: CreateBillingEventInput | UpdateBillingEventInput) {
     setIsSubmitting(true);
@@ -127,6 +152,7 @@ export function BillingEventsPage({ initialSearch = '' }: BillingEventsPageProps
       } else {
         await createBillingEvent(input as CreateBillingEventInput);
       }
+      setIsEditorOpen(false);
       setEditingBillingEvent(undefined);
       await loadBillingEvents(1);
     } catch (caught) {
@@ -157,19 +183,63 @@ export function BillingEventsPage({ initialSearch = '' }: BillingEventsPageProps
     }
   }
 
+  function openCreatePanel() {
+    setEditingBillingEvent(undefined);
+    setIsEditorOpen(true);
+  }
+
+  function openEditPanel(billingEvent: BillingEventRecord) {
+    setEditingBillingEvent(billingEvent);
+    setIsEditorOpen(true);
+  }
+
+  function closeEditor() {
+    setIsEditorOpen(false);
+    setEditingBillingEvent(undefined);
+  }
+
+  function handleBillingEventRowKeyDown(
+    event: KeyboardEvent<HTMLTableRowElement>,
+    billingEvent: BillingEventRecord,
+  ) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      openEditPanel(billingEvent);
+    }
+  }
+
+  function applySavedView(nextStatus: BillingEventStatus | '') {
+    setStatus(nextStatus);
+    void loadBillingEvents(1, nextStatus);
+  }
+
   return (
     <main className="min-h-screen bg-surface">
       <div className="mx-auto grid w-full max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:px-8">
-        <header className="flex flex-col gap-3 border-b border-slate-200 pb-5 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-harbor">ERP billing</p>
-            <h1 className="mt-1 text-3xl font-semibold text-ink">Billing Events</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-steel">
-              Generate and review ERP-ready billing events from completed billable movement
-              services.
-            </p>
-          </div>
-        </header>
+        <PageHeader
+          eyebrow="ERP billing"
+          title="Billing Events"
+          description="Generate and review ERP-ready billing events from completed billable movement services."
+          metadata={
+            <div className="flex flex-wrap gap-2 text-xs text-steel">
+              <span className="rounded-full border border-line bg-panel px-2.5 py-1">
+                {page.meta.totalItems} total billing events
+              </span>
+              <span className="rounded-full border border-line bg-panel px-2.5 py-1">
+                Sorted by created time
+              </span>
+            </div>
+          }
+          actions={
+            <button
+              type="button"
+              onClick={openCreatePanel}
+              className="rounded-md bg-harbor px-4 py-2 text-sm font-semibold text-white shadow-panel"
+            >
+              New billing event
+            </button>
+          }
+        />
 
         {error ? (
           <div
@@ -180,28 +250,68 @@ export function BillingEventsPage({ initialSearch = '' }: BillingEventsPageProps
           </div>
         ) : null}
 
-        <section className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-          <BillingEventForm
-            key={editingBillingEvent?.id ?? 'new-billing-event'}
-            billingEvent={editingBillingEvent}
-            movementServices={movementServices}
-            isSubmitting={isSubmitting}
-            onSubmit={submitBillingEvent}
-            onCancel={editingBillingEvent ? () => setEditingBillingEvent(undefined) : undefined}
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4" aria-label="Billing KPIs">
+          <KpiCard label="Visible events" value={String(page.data.length)} detail="Current board" />
+          <KpiCard
+            label="Ready"
+            value={String(currentPageSummary.ready)}
+            detail="Prepared for ERP"
           />
+          <KpiCard
+            label="On hold"
+            value={String(currentPageSummary.onHold)}
+            detail="Needs review"
+          />
+          <KpiCard
+            label="Exported"
+            value={String(currentPageSummary.exported)}
+            detail="Sent to ERP"
+          />
+        </section>
 
-          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-panel">
-            <div className="grid gap-3 md:grid-cols-[1fr_10rem_auto]">
+        <section className="rounded-lg border border-line bg-panel shadow-panel">
+          <div className="border-b border-line px-5 py-4">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-ink">Billing board</h2>
+                <p className="mt-1 text-sm text-steel">
+                  Review ERP-ready events, hold exceptions, and track export readiness.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { label: 'All events', status: '' as BillingEventStatus | '' },
+                  { label: 'Ready', status: 'ready' as BillingEventStatus },
+                  { label: 'On hold', status: 'on_hold' as BillingEventStatus },
+                  { label: 'Exported', status: 'exported' as BillingEventStatus },
+                ].map((view) => (
+                  <button
+                    key={view.label}
+                    type="button"
+                    onClick={() => applySavedView(view.status)}
+                    className={
+                      status === view.status
+                        ? 'rounded-full bg-ink px-3 py-1.5 text-sm font-semibold text-white'
+                        : 'rounded-full border border-line px-3 py-1.5 text-sm font-semibold text-steel'
+                    }
+                  >
+                    {view.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-[1fr_10rem_auto]">
               <input
                 placeholder="Search events"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                className="rounded-md border border-slate-300 px-3 py-2"
+                className="rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink"
               />
               <select
                 value={status}
                 onChange={(event) => setStatus(event.target.value as BillingEventStatus | '')}
-                className="rounded-md border border-slate-300 px-3 py-2"
+                className="rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink"
                 aria-label="Filter by status"
               >
                 <option value="">Any status</option>
@@ -218,44 +328,60 @@ export function BillingEventsPage({ initialSearch = '' }: BillingEventsPageProps
                 Apply
               </button>
             </div>
+          </div>
 
-            <div className="mt-5 overflow-x-auto">
+          <div className="overflow-x-auto">
+            {page.data.length > 0 ? (
               <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
-                <thead>
+                <thead className="bg-surface">
                   <tr className="text-xs uppercase tracking-wide text-steel">
-                    <th className="py-3 pr-4">Reference</th>
+                    <th className="px-5 py-3 pr-4">Reference</th>
                     <th className="py-3 pr-4">Source</th>
                     <th className="py-3 pr-4">Status</th>
                     <th className="py-3 pr-4">ERP</th>
                     <th className="py-3 pr-4">Exported</th>
-                    <th className="py-3 text-right">Actions</th>
+                    <th className="px-5 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {page.data.map((billingEvent) => (
-                    <tr key={billingEvent.id}>
-                      <td className="py-3 pr-4 font-semibold text-ink">
+                    <tr
+                      key={billingEvent.id}
+                      tabIndex={0}
+                      onClick={() => openEditPanel(billingEvent)}
+                      onKeyDown={(event) => handleBillingEventRowKeyDown(event, billingEvent)}
+                      className="cursor-pointer hover:bg-surface/70 focus:bg-surface focus:outline-none focus:ring-1 focus:ring-inset focus:ring-harbor/30"
+                    >
+                      <td className="px-5 py-3 pr-4 font-semibold text-ink">
                         {billingEvent.eventReference}
                       </td>
                       <td className="py-3 pr-4 text-steel">
                         {movementServiceLabels.get(billingEvent.movementServiceId) ??
                           billingEvent.movementServiceId}
                       </td>
-                      <td className="py-3 pr-4 text-steel">{billingEvent.status}</td>
+                      <td className="py-3 pr-4">
+                        <StatusBadge status={billingEvent.status} />
+                      </td>
                       <td className="py-3 pr-4 text-steel">{billingEvent.erpSystem ?? '-'}</td>
                       <td className="py-3 pr-4 text-steel">
                         {formatDateTime(billingEvent.exportedAt)}
                       </td>
-                      <td className="py-3 text-right">
+                      <td className="px-5 py-3 text-right">
                         <div className="flex justify-end gap-2">
                           <button
-                            onClick={() => setEditingBillingEvent(billingEvent)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openEditPanel(billingEvent);
+                            }}
                             className="rounded-md border border-slate-300 px-3 py-1.5 font-semibold text-steel"
                           >
                             Edit
                           </button>
                           <button
-                            onClick={() => void rejectBillingEvent(billingEvent)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void rejectBillingEvent(billingEvent);
+                            }}
                             className="rounded-md border border-red-200 px-3 py-1.5 font-semibold text-red-700"
                           >
                             Reject
@@ -266,44 +392,85 @@ export function BillingEventsPage({ initialSearch = '' }: BillingEventsPageProps
                   ))}
                 </tbody>
               </table>
+            ) : null}
 
-              {!isLoading && page.data.length === 0 ? (
-                <p className="py-8 text-center text-sm text-steel">
-                  No billing events match the current filters.
-                </p>
-              ) : null}
-              {isLoading ? (
-                <p className="py-8 text-center text-sm text-steel">Loading billing events...</p>
-              ) : null}
-            </div>
-
-            <div className="mt-5 flex flex-wrap items-center justify-between gap-3 text-sm text-steel">
-              <span>
-                Page {page.meta.page} of {page.meta.totalPages} · {page.meta.totalItems} billing
-                events
-              </span>
-              <div className="flex gap-2">
-                <button
-                  disabled={currentPage <= 1}
-                  onClick={() => void loadBillingEvents(currentPage - 1)}
-                  className="rounded-md border border-slate-300 px-3 py-1.5 disabled:opacity-50"
-                >
-                  Previous
-                </button>
-                <button
-                  disabled={currentPage >= page.meta.totalPages}
-                  onClick={() => void loadBillingEvents(currentPage + 1)}
-                  className="rounded-md border border-slate-300 px-3 py-1.5 disabled:opacity-50"
-                >
-                  Next
-                </button>
+            {!isLoading && page.data.length === 0 ? (
+              <div className="p-5">
+                <EmptyState
+                  title="No billing events match this view"
+                  description="Adjust the filters or create a billing event from a completed billable movement service."
+                />
               </div>
+            ) : null}
+            {isLoading ? (
+              <p className="py-8 text-center text-sm text-steel">Loading billing events...</p>
+            ) : null}
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-5 py-4 text-sm text-steel">
+            <span>
+              Page {page.meta.page} of {page.meta.totalPages} · {page.meta.totalItems} billing
+              events
+            </span>
+            <div className="flex gap-2">
+              <button
+                disabled={currentPage <= 1}
+                onClick={() => void loadBillingEvents(currentPage - 1)}
+                className="rounded-md border border-line px-3 py-1.5 disabled:opacity-50"
+              >
+                Previous
+              </button>
+              <button
+                disabled={currentPage >= page.meta.totalPages}
+                onClick={() => void loadBillingEvents(currentPage + 1)}
+                className="rounded-md border border-line px-3 py-1.5 disabled:opacity-50"
+              >
+                Next
+              </button>
             </div>
           </div>
         </section>
       </div>
+
+      <SlideOver
+        isOpen={isEditorOpen}
+        title={editingBillingEvent ? 'Edit billing event' : 'New billing event'}
+        description="Review ERP-ready billing event data before export or exception handling."
+        onClose={closeEditor}
+      >
+        <BillingEventForm
+          key={editingBillingEvent?.id ?? 'new-billing-event'}
+          billingEvent={editingBillingEvent}
+          movementServices={movementServices}
+          isSubmitting={isSubmitting}
+          onSubmit={submitBillingEvent}
+          onCancel={closeEditor}
+        />
+      </SlideOver>
     </main>
   );
+}
+
+function KpiCard({
+  label,
+  value,
+  detail,
+}: Readonly<{ label: string; value: string; detail: string }>) {
+  return (
+    <div className="rounded-lg border border-line bg-panel p-4 shadow-panel">
+      <p className="text-xs font-semibold uppercase tracking-wide text-steel">{label}</p>
+      <p className="mt-2 text-3xl font-semibold text-ink">{value}</p>
+      <p className="mt-1 text-sm text-steel">{detail}</p>
+    </div>
+  );
+}
+
+function buildBillingSummary(items: readonly BillingEventRecord[]) {
+  return {
+    ready: items.filter((item) => item.status === 'ready').length,
+    onHold: items.filter((item) => item.status === 'on_hold').length,
+    exported: items.filter((item) => item.status === 'exported').length,
+  };
 }
 
 function formatDateTime(value: string | null): string {

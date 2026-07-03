@@ -72,11 +72,11 @@ describe('DashboardShell', () => {
     expect(await screen.findByText('Arrival: LIV-2026-0002')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Arrival: LIV-2026-0002' })).toHaveAttribute(
       'href',
-      '/vessel-calls?search=LIV-2026-0002',
+      '/vessel-calls?id=call-1',
     );
     expect(screen.getByRole('link', { name: 'Billing: BILL-LIV-0003' })).toHaveAttribute(
       'href',
-      '/billing-events?search=BILL-LIV-0003',
+      '/billing-events?id=billing-1',
     );
     expect(screen.getByText('1 arrivals and 0 departures on the board')).toBeInTheDocument();
     expect(screen.getByText('RBAC plus vessel-level policies')).toBeInTheDocument();

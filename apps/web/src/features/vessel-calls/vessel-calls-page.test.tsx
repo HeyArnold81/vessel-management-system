@@ -83,6 +83,29 @@ describe('VesselCallsPage', () => {
         });
       }
 
+      if (url.includes('/api/v1/audit-logs')) {
+        return Response.json({
+          data: [
+            {
+              id: '22222222-2222-4222-8222-222222222222',
+              tenantId,
+              actorUserId: null,
+              action: 'vessel_call.update',
+              entityType: 'vessel_call',
+              entityId: vesselCallId,
+              requestId: null,
+              ipAddress: null,
+              userAgent: null,
+              beforeData: { status: 'expected' },
+              afterData: { status: 'arrived' },
+              metadata: { source: 'vessel-calls-api' },
+              createdAt: '2026-07-01T12:00:00.000Z',
+            },
+          ],
+          meta: { page: 1, pageSize: 5, totalItems: 1, totalPages: 1 },
+        });
+      }
+
       if (url.includes('/api/v1/movement-services')) {
         if (init?.method === 'DELETE') {
           serviceDeleted = true;
@@ -114,11 +137,11 @@ describe('VesselCallsPage', () => {
                   movementId,
                   serviceId,
                   providerOrganizationId: null,
-                  status: 'completed',
+                  status: 'requested',
                   quantity: '1',
                   unitOfMeasure: 'job',
                   requestedAt: '2026-07-01T10:00:00.000Z',
-                  completedAt: '2026-07-01T12:00:00.000Z',
+                  completedAt: null,
                   isBillable: true,
                   createdAt: '2026-01-01T00:00:00.000Z',
                   updatedAt: '2026-01-02T00:00:00.000Z',
@@ -150,6 +173,28 @@ describe('VesselCallsPage', () => {
             },
           ],
           meta: { page: 1, pageSize: 100, totalItems: 1, totalPages: 1 },
+        });
+      }
+
+      if (url.includes(`/api/v1/vessel-calls/${vesselCallId}`)) {
+        return Response.json({
+          id: vesselCallId,
+          tenantId,
+          callReference: 'CALL-2026-0001',
+          vesselId,
+          portId,
+          berthId: null,
+          agentId: null,
+          operatorId: null,
+          voyageNumber: 'VOY-7781',
+          status: 'expected',
+          eta: '2026-07-01T10:00:00.000Z',
+          etd: '2026-07-02T18:00:00.000Z',
+          ata: null,
+          atd: null,
+          remarks: null,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-02T00:00:00.000Z',
         });
       }
 
@@ -219,6 +264,8 @@ describe('VesselCallsPage', () => {
     expect(await screen.findByText('MOVE-2026-0001')).toBeInTheDocument();
     expect(screen.getByText('Harbour Pilotage (PILOTAGE)')).toBeInTheDocument();
     expect(screen.getByText('Vessel call -> movements -> movement services')).toBeInTheDocument();
+    expect(await screen.findByText('Vessel call update')).toBeInTheDocument();
+    expect(screen.getByText('Status changed from expected to arrived')).toBeInTheDocument();
   });
 
   it('loads vessel calls using the initial search value', async () => {
@@ -237,6 +284,19 @@ describe('VesselCallsPage', () => {
       expect.any(Object),
     );
     expect(screen.getByDisplayValue('CALL-2026-0001')).toBeInTheDocument();
+  });
+
+  it('loads and selects a vessel call using the initial id value', async () => {
+    const fetchMock = mockVesselCallApis();
+
+    render(<VesselCallsPage initialId={vesselCallId} />);
+
+    expect(await screen.findByText('MOVE-2026-0001')).toBeInTheDocument();
+    expect(screen.getByText('Harbour Pilotage (PILOTAGE)')).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining(`/api/v1/vessel-calls/${vesselCallId}`),
+      expect.any(Object),
+    );
   });
 
   it('opens movement and service actions from the operational chain', async () => {
@@ -282,6 +342,65 @@ describe('VesselCallsPage', () => {
     );
     expect(window.confirm).toHaveBeenCalledWith(
       'Delete movement service Harbour Pilotage (PILOTAGE)? This action cannot be undone.',
+    );
+  });
+
+  it('opens a movement service editor from the operational chain', async () => {
+    mockVesselCallApis();
+
+    render(<VesselCallsPage />);
+
+    await screen.findByText('CALL-2026-0001');
+
+    fireEvent.click(screen.getByRole('row', { name: /CALL-2026-0001/ }));
+
+    expect(await screen.findByText('Harbour Pilotage (PILOTAGE)')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit service' }));
+
+    expect(screen.getByRole('heading', { name: 'Edit service' })).toBeInTheDocument();
+    expect(screen.getByDisplayValue('MOVE-2026-0001 · arrival')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Harbour Pilotage · PILOTAGE')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('1')).toBeInTheDocument();
+  });
+
+  it('advances vessel call, movement, and service statuses from the operational chain', async () => {
+    const fetchMock = mockVesselCallApis();
+
+    render(<VesselCallsPage />);
+
+    await screen.findByText('CALL-2026-0001');
+
+    fireEvent.click(screen.getByRole('row', { name: /CALL-2026-0001/ }));
+
+    await screen.findByText('MOVE-2026-0001');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mark arrived' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Start movement' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Schedule service' }));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining(`/api/v1/movement-services/99999999-9999-4999-8999-999999999999`),
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({ status: 'scheduled' }),
+        }),
+      ),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining(`/api/v1/vessel-calls/${vesselCallId}`),
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'arrived' }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining(`/api/v1/movements/${movementId}`),
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'in_progress' }),
+      }),
     );
   });
 });

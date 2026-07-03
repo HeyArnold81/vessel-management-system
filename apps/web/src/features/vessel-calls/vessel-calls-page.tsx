@@ -9,6 +9,8 @@ import type {
   CreateVesselCallInput,
   MovementRecord,
   MovementServiceRecord,
+  MovementServiceStatus,
+  MovementStatus,
   PaginatedResponse,
   PortRecord,
   ServiceCatalogRecord,
@@ -22,20 +24,28 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { PageHeader } from '@/components/ui/page-header';
 import { SlideOver } from '@/components/ui/slide-over';
 import { StatusBadge } from '@/components/ui/status-badge';
+import { AuditLogPanel } from '@/features/audit/audit-log-panel';
 import {
   createMovementService,
   deleteMovementService,
   listMovementServices,
+  updateMovementService,
 } from '@/features/movement-services/api';
 import { MovementServiceForm } from '@/features/movement-services/movement-service-form';
-import { createMovement, listMovements } from '@/features/movements/api';
+import { createMovement, listMovements, updateMovement } from '@/features/movements/api';
 import { MovementForm } from '@/features/movements/movement-form';
 import { listPorts } from '@/features/ports/api';
 import { listServices } from '@/features/services/api';
 import { listVessels } from '@/features/vessels/api';
 import { ApiClientError } from '@/lib/api/http';
 
-import { createVesselCall, deleteVesselCall, listVesselCalls, updateVesselCall } from './api';
+import {
+  createVesselCall,
+  deleteVesselCall,
+  getVesselCall,
+  listVesselCalls,
+  updateVesselCall,
+} from './api';
 import { VesselCallForm } from './vessel-call-form';
 
 const initialPage: PaginatedResponse<VesselCallRecord> = {
@@ -54,10 +64,11 @@ const savedViews: readonly {
 ];
 
 type VesselCallsPageProps = {
+  readonly initialId?: string;
   readonly initialSearch?: string;
 };
 
-export function VesselCallsPage({ initialSearch = '' }: VesselCallsPageProps) {
+export function VesselCallsPage({ initialId = '', initialSearch = '' }: VesselCallsPageProps) {
   const [page, setPage] = useState(initialPage);
   const [vessels, setVessels] = useState<readonly VesselRecord[]>([]);
   const [ports, setPorts] = useState<readonly PortRecord[]>([]);
@@ -76,6 +87,9 @@ export function VesselCallsPage({ initialSearch = '' }: VesselCallsPageProps) {
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [isMovementEditorOpen, setIsMovementEditorOpen] = useState(false);
   const [serviceMovement, setServiceMovement] = useState<MovementRecord | null>(null);
+  const [editingMovementService, setEditingMovementService] = useState<
+    MovementServiceRecord | undefined
+  >();
   const [editingVesselCall, setEditingVesselCall] = useState<VesselCallRecord | undefined>();
   const [error, setError] = useState<string | null>(null);
 
@@ -130,19 +144,31 @@ export function VesselCallsPage({ initialSearch = '' }: VesselCallsPageProps) {
           listVessels({ page: 1, pageSize: 100, status: 'active', sortBy: 'name' }),
           listPorts({ page: 1, pageSize: 100, status: 'active', sortBy: 'name' }),
           listServices({ page: 1, pageSize: 100, status: 'active', sortBy: 'name' }),
-          listVesselCalls({
-            page: 1,
-            pageSize: 10,
-            search: initialSearch,
-            sortBy: 'eta',
-            sortDirection: 'asc',
-          }),
+          initialId
+            ? getVesselCall(initialId)
+            : listVesselCalls({
+                page: 1,
+                pageSize: 10,
+                search: initialSearch,
+                sortBy: 'eta',
+                sortDirection: 'asc',
+              }),
         ]);
+        const nextPage =
+          'meta' in callResult
+            ? callResult
+            : {
+                data: [callResult],
+                meta: { page: 1, pageSize: 1, totalItems: 1, totalPages: 1 },
+              };
 
         setVessels(vesselResult.data);
         setPorts(portResult.data);
         setServices(serviceResult.data);
-        setPage(callResult);
+        setPage(nextPage);
+        if (!('meta' in callResult)) {
+          await selectVesselCall(callResult);
+        }
       } catch (caught) {
         setError(
           caught instanceof ApiClientError ? caught.message : 'Unable to load vessel calls.',
@@ -153,7 +179,7 @@ export function VesselCallsPage({ initialSearch = '' }: VesselCallsPageProps) {
     }
 
     void loadInitialData();
-  }, [initialSearch]);
+  }, [initialId, initialSearch]);
 
   async function submitVesselCall(input: CreateVesselCallInput) {
     setIsSubmitting(true);
@@ -197,8 +223,12 @@ export function VesselCallsPage({ initialSearch = '' }: VesselCallsPageProps) {
     setError(null);
 
     try {
-      await createMovementService(input);
-      setServiceMovement(null);
+      if (editingMovementService) {
+        await updateMovementService(editingMovementService.id, input);
+      } else {
+        await createMovementService(input);
+      }
+      closeServiceEditor();
       if (selectedVesselCall) {
         await selectVesselCall(selectedVesselCall);
       }
@@ -255,6 +285,61 @@ export function VesselCallsPage({ initialSearch = '' }: VesselCallsPageProps) {
       await loadVesselCalls(currentPage);
     } catch (caught) {
       setError(caught instanceof ApiClientError ? caught.message : 'Unable to delete vessel call.');
+    }
+  }
+
+  async function advanceVesselCallStatus(
+    vesselCall: VesselCallRecord,
+    nextStatus: VesselCallStatus,
+  ) {
+    setError(null);
+
+    try {
+      const updated = await updateVesselCall(vesselCall.id, { status: nextStatus });
+      setPage((current) => ({
+        ...current,
+        data: current.data.map((item) => (item.id === updated.id ? updated : item)),
+      }));
+      await selectVesselCall(updated);
+    } catch (caught) {
+      setError(
+        caught instanceof ApiClientError ? caught.message : 'Unable to update vessel call status.',
+      );
+    }
+  }
+
+  async function advanceMovementStatus(movement: MovementRecord, nextStatus: MovementStatus) {
+    if (!selectedVesselCall) {
+      return;
+    }
+
+    setError(null);
+
+    try {
+      await updateMovement(movement.id, { status: nextStatus });
+      await selectVesselCall(selectedVesselCall);
+    } catch (caught) {
+      setError(caught instanceof ApiClientError ? caught.message : 'Unable to update movement.');
+    }
+  }
+
+  async function advanceMovementServiceStatus(
+    movementService: MovementServiceRecord,
+    nextStatus: MovementServiceStatus,
+  ) {
+    if (!selectedVesselCall) {
+      return;
+    }
+
+    setError(null);
+
+    try {
+      await updateMovementService(movementService.id, { status: nextStatus });
+      await selectVesselCall(selectedVesselCall);
+    } catch (caught) {
+      setError(
+        caught instanceof ApiClientError ? caught.message : 'Unable to update movement service.',
+      );
     }
   }
 
@@ -323,6 +408,19 @@ export function VesselCallsPage({ initialSearch = '' }: VesselCallsPageProps) {
 
   function closeServiceEditor() {
     setServiceMovement(null);
+    setEditingMovementService(undefined);
+  }
+
+  function openCreateServicePanel(movement: MovementRecord) {
+    setEditingMovementService(undefined);
+    setServiceMovement(movement);
+  }
+
+  function openEditServicePanel(movementService: MovementServiceRecord) {
+    setEditingMovementService(movementService);
+    setServiceMovement(
+      linkedMovements.find((movement) => movement.id === movementService.movementId) ?? null,
+    );
   }
 
   function handleVesselCallRowKeyDown(
@@ -570,9 +668,21 @@ export function VesselCallsPage({ initialSearch = '' }: VesselCallsPageProps) {
           serviceNames={serviceNames}
           isLoading={isWorkflowLoading}
           onAddMovement={() => setIsMovementEditorOpen(true)}
-          onAttachService={setServiceMovement}
+          onAttachService={openCreateServicePanel}
+          onEditService={openEditServicePanel}
           onDeleteService={removeMovementService}
+          onAdvanceVesselCallStatus={advanceVesselCallStatus}
+          onAdvanceMovementStatus={advanceMovementStatus}
+          onAdvanceMovementServiceStatus={advanceMovementServiceStatus}
         />
+
+        {selectedVesselCall ? (
+          <AuditLogPanel
+            entityType="vessel_call"
+            entityId={selectedVesselCall.id}
+            title="Recent vessel call activity"
+          />
+        ) : null}
       </div>
 
       <SlideOver
@@ -607,13 +717,15 @@ export function VesselCallsPage({ initialSearch = '' }: VesselCallsPageProps) {
       </SlideOver>
 
       <SlideOver
-        isOpen={serviceMovement !== null}
-        title="Attach service"
-        description="Attach a marine service directly to this movement."
+        isOpen={serviceMovement !== null || editingMovementService !== undefined}
+        title={editingMovementService ? 'Edit service' : 'Attach service'}
+        description="Attach or update a marine service directly from this vessel call."
         onClose={closeServiceEditor}
       >
         <MovementServiceForm
-          movements={serviceMovement ? [serviceMovement] : []}
+          key={editingMovementService?.id ?? serviceMovement?.id ?? 'new-movement-service'}
+          movementService={editingMovementService}
+          movements={serviceMovement ? [serviceMovement] : linkedMovements}
           services={services}
           isSubmitting={isSubmitting}
           onSubmit={submitMovementService}
@@ -632,7 +744,11 @@ function OperationalChain({
   isLoading,
   onAddMovement,
   onAttachService,
+  onEditService,
   onDeleteService,
+  onAdvanceVesselCallStatus,
+  onAdvanceMovementStatus,
+  onAdvanceMovementServiceStatus,
 }: Readonly<{
   vesselCall: VesselCallRecord | null;
   movements: readonly MovementRecord[];
@@ -641,7 +757,14 @@ function OperationalChain({
   isLoading: boolean;
   onAddMovement: () => void;
   onAttachService: (movement: MovementRecord) => void;
+  onEditService: (movementService: MovementServiceRecord) => void;
   onDeleteService: (movementService: MovementServiceRecord) => void;
+  onAdvanceVesselCallStatus: (vesselCall: VesselCallRecord, nextStatus: VesselCallStatus) => void;
+  onAdvanceMovementStatus: (movement: MovementRecord, nextStatus: MovementStatus) => void;
+  onAdvanceMovementServiceStatus: (
+    movementService: MovementServiceRecord,
+    nextStatus: MovementServiceStatus,
+  ) => void;
 }>) {
   if (!vesselCall) {
     return (
@@ -653,6 +776,8 @@ function OperationalChain({
       </section>
     );
   }
+
+  const vesselCallTransition = getVesselCallTransition(vesselCall.status);
 
   return (
     <section className="rounded-lg border border-line bg-panel shadow-panel">
@@ -669,6 +794,15 @@ function OperationalChain({
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={vesselCall.status} />
+            {vesselCallTransition ? (
+              <button
+                type="button"
+                onClick={() => onAdvanceVesselCallStatus(vesselCall, vesselCallTransition.status)}
+                className="rounded-md border border-line px-3 py-1.5 text-sm font-semibold text-steel"
+              >
+                {vesselCallTransition.label}
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={onAddMovement}
@@ -699,6 +833,7 @@ function OperationalChain({
             const servicesForMovement = movementServices.filter(
               (movementService) => movementService.movementId === movement.id,
             );
+            const movementTransition = getMovementTransition(movement.status);
 
             return (
               <article key={movement.id} className="grid gap-4 px-5 py-5 xl:grid-cols-[18rem_1fr]">
@@ -711,6 +846,15 @@ function OperationalChain({
                   <p className="mt-1 text-sm text-steel">
                     Planned {formatDateTime(movement.plannedAt)}
                   </p>
+                  {movementTransition ? (
+                    <button
+                      type="button"
+                      onClick={() => onAdvanceMovementStatus(movement, movementTransition.status)}
+                      className="mt-3 rounded-md border border-line px-3 py-1.5 text-sm font-semibold text-steel"
+                    >
+                      {movementTransition.label}
+                    </button>
+                  ) : null}
                 </div>
 
                 <div>
@@ -728,35 +872,62 @@ function OperationalChain({
                   </div>
                   {servicesForMovement.length > 0 ? (
                     <div className="mt-3 grid gap-2 md:grid-cols-2">
-                      {servicesForMovement.map((movementService) => (
-                        <div
-                          key={movementService.id}
-                          className="rounded-md border border-line bg-surface p-3"
-                        >
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <p className="text-sm font-semibold text-ink">
-                              {serviceNames.get(movementService.serviceId) ??
-                                movementService.serviceId}
+                      {servicesForMovement.map((movementService) => {
+                        const serviceTransition = getMovementServiceTransition(
+                          movementService.status,
+                        );
+
+                        return (
+                          <div
+                            key={movementService.id}
+                            className="rounded-md border border-line bg-surface p-3"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <p className="text-sm font-semibold text-ink">
+                                {serviceNames.get(movementService.serviceId) ??
+                                  movementService.serviceId}
+                              </p>
+                              <StatusBadge status={movementService.status} />
+                            </div>
+                            <p className="mt-2 text-sm text-steel">
+                              {movementService.quantity} {movementService.unitOfMeasure}
                             </p>
-                            <StatusBadge status={movementService.status} />
+                            <p className="mt-1 text-xs text-steel">
+                              {movementService.isBillable ? 'Billable' : 'Non-billable'}
+                            </p>
+                            <div className="mt-3 flex flex-wrap justify-end gap-2">
+                              {serviceTransition ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    onAdvanceMovementServiceStatus(
+                                      movementService,
+                                      serviceTransition.status,
+                                    )
+                                  }
+                                  className="rounded-md border border-line px-2.5 py-1 text-xs font-semibold text-steel"
+                                >
+                                  {serviceTransition.label}
+                                </button>
+                              ) : null}
+                              <button
+                                type="button"
+                                onClick={() => onEditService(movementService)}
+                                className="rounded-md border border-line px-2.5 py-1 text-xs font-semibold text-steel"
+                              >
+                                Edit service
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => onDeleteService(movementService)}
+                                className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-semibold text-red-700"
+                              >
+                                Delete service
+                              </button>
+                            </div>
                           </div>
-                          <p className="mt-2 text-sm text-steel">
-                            {movementService.quantity} {movementService.unitOfMeasure}
-                          </p>
-                          <p className="mt-1 text-xs text-steel">
-                            {movementService.isBillable ? 'Billable' : 'Non-billable'}
-                          </p>
-                          <div className="mt-3 flex justify-end">
-                            <button
-                              type="button"
-                              onClick={() => onDeleteService(movementService)}
-                              className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-semibold text-red-700"
-                            >
-                              Delete service
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
                     <p className="mt-3 rounded-md border border-dashed border-line bg-surface px-4 py-5 text-sm text-steel">
@@ -793,6 +964,53 @@ function buildVesselCallSummary(items: readonly VesselCallRecord[]) {
     alongside: items.filter((item) => item.status === 'alongside').length,
     departed: items.filter((item) => item.status === 'departed').length,
   };
+}
+
+function getVesselCallTransition(
+  status: VesselCallStatus,
+): { label: string; status: VesselCallStatus } | null {
+  switch (status) {
+    case 'planned':
+      return { label: 'Mark expected', status: 'expected' };
+    case 'expected':
+      return { label: 'Mark arrived', status: 'arrived' };
+    case 'arrived':
+      return { label: 'Mark alongside', status: 'alongside' };
+    case 'alongside':
+      return { label: 'Mark departed', status: 'departed' };
+    default:
+      return null;
+  }
+}
+
+function getMovementTransition(
+  status: MovementStatus,
+): { label: string; status: MovementStatus } | null {
+  switch (status) {
+    case 'planned':
+      return { label: 'Start movement', status: 'in_progress' };
+    case 'in_progress':
+      return { label: 'Complete movement', status: 'completed' };
+    default:
+      return null;
+  }
+}
+
+function getMovementServiceTransition(
+  status: MovementServiceStatus,
+): { label: string; status: MovementServiceStatus } | null {
+  switch (status) {
+    case 'requested':
+      return { label: 'Schedule service', status: 'scheduled' };
+    case 'scheduled':
+      return { label: 'Start service', status: 'in_progress' };
+    case 'in_progress':
+      return { label: 'Complete service', status: 'completed' };
+    case 'on_hold':
+      return { label: 'Resume service', status: 'scheduled' };
+    default:
+      return null;
+  }
 }
 
 function formatDateTime(value: string | null): string {

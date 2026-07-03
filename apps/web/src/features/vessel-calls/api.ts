@@ -24,6 +24,10 @@ export function listVesselCalls(
   );
 }
 
+export function getVesselCall(id: string): Promise<VesselCallRecord> {
+  return requestJson<VesselCallRecord>(`/api/v1/vessel-calls/${id}`);
+}
+
 export function createVesselCall(input: CreateVesselCallInput): Promise<VesselCallRecord> {
   return requestJson<VesselCallRecord>('/api/v1/vessel-calls', {
     method: 'POST',

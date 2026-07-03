@@ -635,6 +635,31 @@ export type RoleListQuery = {
   readonly sortDirection?: SortDirection;
 };
 
+export type AuditLogRecord = {
+  readonly id: string;
+  readonly tenantId: string;
+  readonly actorUserId: string | null;
+  readonly action: string;
+  readonly entityType: string;
+  readonly entityId: string;
+  readonly requestId: string | null;
+  readonly ipAddress: string | null;
+  readonly userAgent: string | null;
+  readonly beforeData: unknown | null;
+  readonly afterData: unknown | null;
+  readonly metadata: unknown | null;
+  readonly createdAt: string;
+};
+
+export type AuditLogListQuery = {
+  readonly page?: number;
+  readonly pageSize?: number;
+  readonly entityType?: string;
+  readonly entityId?: string;
+  readonly action?: string;
+  readonly sortDirection?: SortDirection;
+};
+
 export type CreateRoleInput = {
   readonly code: string;
   readonly name: string;

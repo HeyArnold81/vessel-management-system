@@ -171,20 +171,16 @@ function toOperations(overview: ReportsOverviewRecord | null) {
 
   return [
     ...overview.operations.upcomingArrivals.map((item) =>
-      toOperation(item, 'Arrival', `/vessel-calls?search=${encodeURIComponent(item.reference)}`),
+      toOperation(item, 'Arrival', `/vessel-calls?id=${encodeURIComponent(item.id)}`),
     ),
     ...overview.operations.upcomingDepartures.map((item) =>
-      toOperation(item, 'Departure', `/vessel-calls?search=${encodeURIComponent(item.reference)}`),
+      toOperation(item, 'Departure', `/vessel-calls?id=${encodeURIComponent(item.id)}`),
     ),
     ...overview.billing.pendingBillingEvents.map((item) =>
-      toOperation(item, 'Billing', `/billing-events?search=${encodeURIComponent(item.reference)}`),
+      toOperation(item, 'Billing', `/billing-events?id=${encodeURIComponent(item.id)}`),
     ),
     ...overview.billing.failedBillingEvents.map((item) =>
-      toOperation(
-        item,
-        'Exception',
-        `/billing-events?search=${encodeURIComponent(item.reference)}`,
-      ),
+      toOperation(item, 'Exception', `/billing-events?id=${encodeURIComponent(item.id)}`),
     ),
   ]
     .sort((left, right) => left.sortKey.localeCompare(right.sortKey))

@@ -24,6 +24,10 @@ export function listBillingEvents(
   );
 }
 
+export function getBillingEvent(id: string): Promise<BillingEventRecord> {
+  return requestJson<BillingEventRecord>(`/api/v1/billing-events/${id}`);
+}
+
 export function createBillingEvent(input: CreateBillingEventInput): Promise<BillingEventRecord> {
   return requestJson<BillingEventRecord>('/api/v1/billing-events', {
     method: 'POST',
