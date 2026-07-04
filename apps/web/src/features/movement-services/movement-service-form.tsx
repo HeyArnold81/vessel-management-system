@@ -7,6 +7,7 @@ import type {
   MovementRecord,
   MovementServiceRecord,
   MovementServiceStatus,
+  OrganizationRecord,
   ServiceCatalogRecord,
 } from '@vms/shared';
 import { movementServiceStatuses } from '@vms/shared';
@@ -15,6 +16,7 @@ type MovementServiceFormProps = {
   readonly movementService?: MovementServiceRecord;
   readonly movements: readonly MovementRecord[];
   readonly services: readonly ServiceCatalogRecord[];
+  readonly organizations: readonly OrganizationRecord[];
   readonly isSubmitting: boolean;
   readonly onSubmit: (input: CreateMovementServiceInput) => Promise<void>;
   readonly onCancel?: () => void;
@@ -24,6 +26,7 @@ export function MovementServiceForm({
   movementService,
   movements,
   services,
+  organizations,
   isSubmitting,
   onSubmit,
   onCancel,
@@ -36,6 +39,9 @@ export function MovementServiceForm({
       movementId: movementService?.movementId ?? movements[0]?.id ?? '',
       serviceId: movementService?.serviceId ?? services[0]?.id ?? '',
       providerOrganizationId: movementService?.providerOrganizationId ?? '',
+      serviceReceiverOrganizationId: movementService?.serviceReceiverOrganizationId ?? '',
+      billToOrganizationId: movementService?.billToOrganizationId ?? '',
+      payerOrganizationId: movementService?.payerOrganizationId ?? '',
       status: movementService?.status ?? 'requested',
       quantity: movementService?.quantity ?? '1',
       unitOfMeasure: movementService?.unitOfMeasure ?? selectedCatalogService?.defaultUnit ?? 'job',
@@ -58,6 +64,9 @@ export function MovementServiceForm({
       movementId: values.movementId,
       serviceId: values.serviceId,
       providerOrganizationId: values.providerOrganizationId || null,
+      serviceReceiverOrganizationId: values.serviceReceiverOrganizationId || null,
+      billToOrganizationId: values.billToOrganizationId || null,
+      payerOrganizationId: values.payerOrganizationId || null,
       status: values.status,
       quantity: Number(values.quantity),
       unitOfMeasure: values.unitOfMeasure,
@@ -131,14 +140,68 @@ export function MovementServiceForm({
           </select>
         </Field>
 
-        <Field label="Provider organization ID">
-          <input
+        <Field label="Service provider">
+          <select
             value={values.providerOrganizationId}
             onChange={(event) =>
               setValues({ ...values, providerOrganizationId: event.target.value })
             }
             className="w-full rounded-md border border-slate-300 px-3 py-2"
-          />
+          >
+            <option value="">No service provider selected</option>
+            {organizations.map((organization) => (
+              <option key={organization.id} value={organization.id}>
+                {formatOrganizationName(organization)}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <Field label="Service receiver">
+          <select
+            value={values.serviceReceiverOrganizationId}
+            onChange={(event) =>
+              setValues({ ...values, serviceReceiverOrganizationId: event.target.value })
+            }
+            className="w-full rounded-md border border-slate-300 px-3 py-2"
+          >
+            <option value="">No service receiver selected</option>
+            {organizations.map((organization) => (
+              <option key={organization.id} value={organization.id}>
+                {formatOrganizationName(organization)}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <Field label="Bill-to party">
+          <select
+            value={values.billToOrganizationId}
+            onChange={(event) => setValues({ ...values, billToOrganizationId: event.target.value })}
+            className="w-full rounded-md border border-slate-300 px-3 py-2"
+          >
+            <option value="">No bill-to party selected</option>
+            {organizations.map((organization) => (
+              <option key={organization.id} value={organization.id}>
+                {formatOrganizationName(organization)}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <Field label="Payer">
+          <select
+            value={values.payerOrganizationId}
+            onChange={(event) => setValues({ ...values, payerOrganizationId: event.target.value })}
+            className="w-full rounded-md border border-slate-300 px-3 py-2"
+          >
+            <option value="">No payer selected</option>
+            {organizations.map((organization) => (
+              <option key={organization.id} value={organization.id}>
+                {formatOrganizationName(organization)}
+              </option>
+            ))}
+          </select>
         </Field>
 
         <Field label="Quantity">
@@ -220,6 +283,12 @@ function Field({ label, children }: Readonly<{ label: string; children: React.Re
       {children}
     </label>
   );
+}
+
+function formatOrganizationName(organization: OrganizationRecord): string {
+  return organization.tradingName
+    ? `${organization.tradingName} · ${organization.legalName}`
+    : organization.legalName;
 }
 
 function toInputDateTime(value: string | null | undefined): string {

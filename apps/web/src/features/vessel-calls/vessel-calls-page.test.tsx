@@ -9,6 +9,7 @@ const portId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const vesselCallId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const movementId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
 const serviceId = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+const organizationId = '99999999-9999-4999-8999-999999999999';
 
 describe('VesselCallsPage', () => {
   afterEach(() => {
@@ -83,6 +84,27 @@ describe('VesselCallsPage', () => {
         });
       }
 
+      if (url.includes('/api/v1/organizations')) {
+        return Response.json({
+          data: [
+            {
+              id: organizationId,
+              tenantId,
+              legalName: 'Peel Ports Demo Operations Ltd',
+              tradingName: 'Peel Ports Demo',
+              registrationNumber: null,
+              taxNumber: null,
+              email: null,
+              phone: null,
+              status: 'active',
+              createdAt: '2026-01-01T00:00:00.000Z',
+              updatedAt: '2026-01-02T00:00:00.000Z',
+            },
+          ],
+          meta: { page: 1, pageSize: 100, totalItems: 1, totalPages: 1 },
+        });
+      }
+
       if (url.includes('/api/v1/audit-logs')) {
         return Response.json({
           data: [
@@ -115,7 +137,10 @@ describe('VesselCallsPage', () => {
             tenantId,
             movementId,
             serviceId,
-            providerOrganizationId: null,
+            providerOrganizationId: organizationId,
+            serviceReceiverOrganizationId: organizationId,
+            billToOrganizationId: organizationId,
+            payerOrganizationId: organizationId,
             status: 'completed',
             quantity: '1',
             unitOfMeasure: 'job',
@@ -136,7 +161,10 @@ describe('VesselCallsPage', () => {
                   tenantId,
                   movementId,
                   serviceId,
-                  providerOrganizationId: null,
+                  providerOrganizationId: organizationId,
+                  serviceReceiverOrganizationId: organizationId,
+                  billToOrganizationId: organizationId,
+                  payerOrganizationId: organizationId,
                   status: 'requested',
                   quantity: '1',
                   unitOfMeasure: 'job',
@@ -263,6 +291,7 @@ describe('VesselCallsPage', () => {
 
     expect(await screen.findByText('MOVE-2026-0001')).toBeInTheDocument();
     expect(screen.getByText('Harbour Pilotage (PILOTAGE)')).toBeInTheDocument();
+    expect(screen.getAllByText(/Peel Ports Demo/)[0]).toBeInTheDocument();
     expect(screen.getByText('MV Enterprise (9341234) · Felixstowe (GBFXT)')).toBeInTheDocument();
     expect(screen.getByText('1 movements · 1 services')).toBeInTheDocument();
     expect(await screen.findByText('Vessel call update')).toBeInTheDocument();

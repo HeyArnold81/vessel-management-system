@@ -8,6 +8,7 @@ import type {
   MovementRecord,
   MovementServiceRecord,
   MovementServiceStatus,
+  OrganizationRecord,
   PaginatedResponse,
   ServiceCatalogRecord,
 } from '@vms/shared';
@@ -19,6 +20,7 @@ import { SlideOver } from '@/components/ui/slide-over';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { ApiClientError } from '@/lib/api/http';
 import { listMovements } from '@/features/movements/api';
+import { listOrganizations } from '@/features/organizations/api';
 import { listServices } from '@/features/services/api';
 
 import {
@@ -50,6 +52,7 @@ export function MovementServicesPage() {
   const [page, setPage] = useState(initialPage);
   const [movements, setMovements] = useState<readonly MovementRecord[]>([]);
   const [services, setServices] = useState<readonly ServiceCatalogRecord[]>([]);
+  const [organizations, setOrganizations] = useState<readonly OrganizationRecord[]>([]);
   const [status, setStatus] = useState<MovementServiceStatus | ''>('');
   const [billableFilter, setBillableFilter] = useState<'any' | 'true' | 'false'>('any');
   const [currentPage, setCurrentPage] = useState(1);
@@ -74,6 +77,16 @@ export function MovementServicesPage() {
   const serviceLabels = useMemo(
     () => new Map(services.map((service) => [service.id, `${service.name} (${service.code})`])),
     [services],
+  );
+  const organizationLabels = useMemo(
+    () =>
+      new Map(
+        organizations.map((organization) => [
+          organization.id,
+          formatOrganizationName(organization),
+        ]),
+      ),
+    [organizations],
   );
   const currentPageSummary = useMemo(() => buildServiceSummary(page.data), [page.data]);
 
@@ -111,19 +124,22 @@ export function MovementServicesPage() {
       setError(null);
 
       try {
-        const [movementResult, serviceResult, movementServiceResult] = await Promise.all([
-          listMovements({ page: 1, pageSize: 100, sortBy: 'plannedAt', sortDirection: 'asc' }),
-          listServices({ page: 1, pageSize: 100, status: 'active', sortBy: 'name' }),
-          listMovementServices({
-            page: 1,
-            pageSize: 10,
-            sortBy: 'requestedAt',
-            sortDirection: 'asc',
-          }),
-        ]);
+        const [movementResult, serviceResult, organizationResult, movementServiceResult] =
+          await Promise.all([
+            listMovements({ page: 1, pageSize: 100, sortBy: 'plannedAt', sortDirection: 'asc' }),
+            listServices({ page: 1, pageSize: 100, status: 'active', sortBy: 'name' }),
+            listOrganizations({ page: 1, pageSize: 100, status: 'active' }),
+            listMovementServices({
+              page: 1,
+              pageSize: 10,
+              sortBy: 'requestedAt',
+              sortDirection: 'asc',
+            }),
+          ]);
 
         setMovements(movementResult.data);
         setServices(serviceResult.data);
+        setOrganizations(organizationResult.data);
         setPage(movementServiceResult);
       } catch (caught) {
         setError(
@@ -344,6 +360,7 @@ export function MovementServicesPage() {
                   <tr className="text-xs uppercase tracking-wide text-steel">
                     <th className="px-5 py-3 pr-4">Movement</th>
                     <th className="py-3 pr-4">Service</th>
+                    <th className="py-3 pr-4">Commercial parties</th>
                     <th className="py-3 pr-4">Quantity</th>
                     <th className="py-3 pr-4">Status</th>
                     <th className="py-3 pr-4">Billable</th>
@@ -357,9 +374,7 @@ export function MovementServicesPage() {
                       key={movementService.id}
                       tabIndex={0}
                       onClick={() => openEditPanel(movementService)}
-                      onKeyDown={(event) =>
-                        handleMovementServiceRowKeyDown(event, movementService)
-                      }
+                      onKeyDown={(event) => handleMovementServiceRowKeyDown(event, movementService)}
                       className="cursor-pointer hover:bg-surface/70 focus:bg-surface focus:outline-none focus:ring-1 focus:ring-inset focus:ring-harbor/30"
                     >
                       <td className="px-5 py-3 pr-4 font-semibold text-ink">
@@ -367,14 +382,31 @@ export function MovementServicesPage() {
                           {movementLabels.get(movementService.movementId) ??
                             movementService.movementId}
                         </span>
-                        {movementService.providerOrganizationId ? (
-                          <p className="mt-1 text-xs font-normal text-steel">
-                            Provider {movementService.providerOrganizationId}
-                          </p>
-                        ) : null}
                       </td>
                       <td className="py-3 pr-4 text-steel">
                         {serviceLabels.get(movementService.serviceId) ?? movementService.serviceId}
+                      </td>
+                      <td className="py-3 pr-4 text-xs leading-5 text-steel">
+                        <PartyLine
+                          label="Provider"
+                          organizationId={movementService.providerOrganizationId}
+                          organizationLabels={organizationLabels}
+                        />
+                        <PartyLine
+                          label="Receiver"
+                          organizationId={movementService.serviceReceiverOrganizationId}
+                          organizationLabels={organizationLabels}
+                        />
+                        <PartyLine
+                          label="Bill to"
+                          organizationId={movementService.billToOrganizationId}
+                          organizationLabels={organizationLabels}
+                        />
+                        <PartyLine
+                          label="Payer"
+                          organizationId={movementService.payerOrganizationId}
+                          organizationLabels={organizationLabels}
+                        />
                       </td>
                       <td className="py-3 pr-4 text-steel">
                         {movementService.quantity} {movementService.unitOfMeasure}
@@ -467,6 +499,7 @@ export function MovementServicesPage() {
           movementService={editingMovementService}
           movements={movements}
           services={services}
+          organizations={organizations}
           isSubmitting={isSubmitting}
           onSubmit={submitMovementService}
           onCancel={closeEditor}
@@ -496,6 +529,29 @@ function buildServiceSummary(items: readonly MovementServiceRecord[]) {
     completed: items.filter((item) => item.status === 'completed').length,
     onHold: items.filter((item) => item.status === 'on_hold').length,
   };
+}
+
+function PartyLine({
+  label,
+  organizationId,
+  organizationLabels,
+}: Readonly<{
+  label: string;
+  organizationId: string | null;
+  organizationLabels: ReadonlyMap<string, string>;
+}>) {
+  return (
+    <p>
+      <span className="font-semibold text-ink">{label}: </span>
+      {organizationId ? (organizationLabels.get(organizationId) ?? organizationId) : 'Not set'}
+    </p>
+  );
+}
+
+function formatOrganizationName(organization: OrganizationRecord): string {
+  return organization.tradingName
+    ? `${organization.tradingName} · ${organization.legalName}`
+    : organization.legalName;
 }
 
 function formatDateTime(value: string | null): string {

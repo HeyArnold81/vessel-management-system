@@ -35,6 +35,24 @@ export class CreateMovementServiceDto {
   @Matches(uuidPattern, { message: 'Provider organization id must be a valid UUID.' })
   providerOrganizationId?: string | null;
 
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsString()
+  @Matches(uuidPattern, { message: 'Service receiver organization id must be a valid UUID.' })
+  serviceReceiverOrganizationId?: string | null;
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsString()
+  @Matches(uuidPattern, { message: 'Bill-to organization id must be a valid UUID.' })
+  billToOrganizationId?: string | null;
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsString()
+  @Matches(uuidPattern, { message: 'Payer organization id must be a valid UUID.' })
+  payerOrganizationId?: string | null;
+
   @ApiPropertyOptional({ example: 'requested', enum: movementServiceStatuses })
   @IsOptional()
   @IsIn(movementServiceStatuses)
@@ -113,6 +131,24 @@ export class ListMovementServicesQueryDto {
   @IsString()
   @Matches(uuidPattern, { message: 'Provider organization id must be a valid UUID.' })
   providerOrganizationId?: string;
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsString()
+  @Matches(uuidPattern, { message: 'Service receiver organization id must be a valid UUID.' })
+  serviceReceiverOrganizationId?: string;
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsString()
+  @Matches(uuidPattern, { message: 'Bill-to organization id must be a valid UUID.' })
+  billToOrganizationId?: string;
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsString()
+  @Matches(uuidPattern, { message: 'Payer organization id must be a valid UUID.' })
+  payerOrganizationId?: string;
 
   @ApiPropertyOptional({ example: true })
   @IsOptional()

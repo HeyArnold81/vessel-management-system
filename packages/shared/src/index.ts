@@ -400,6 +400,9 @@ export type MovementServiceRecord = {
   readonly movementId: string;
   readonly serviceId: string;
   readonly providerOrganizationId: string | null;
+  readonly serviceReceiverOrganizationId: string | null;
+  readonly billToOrganizationId: string | null;
+  readonly payerOrganizationId: string | null;
   readonly status: MovementServiceStatus;
   readonly quantity: string;
   readonly unitOfMeasure: string;
@@ -417,6 +420,9 @@ export type MovementServiceListQuery = {
   readonly movementId?: string;
   readonly serviceId?: string;
   readonly providerOrganizationId?: string;
+  readonly serviceReceiverOrganizationId?: string;
+  readonly billToOrganizationId?: string;
+  readonly payerOrganizationId?: string;
   readonly isBillable?: boolean;
   readonly sortBy?: MovementServiceSortField;
   readonly sortDirection?: SortDirection;
@@ -426,6 +432,9 @@ export type CreateMovementServiceInput = {
   readonly movementId: string;
   readonly serviceId: string;
   readonly providerOrganizationId?: string | null;
+  readonly serviceReceiverOrganizationId?: string | null;
+  readonly billToOrganizationId?: string | null;
+  readonly payerOrganizationId?: string | null;
   readonly status?: MovementServiceStatus;
   readonly quantity: number;
   readonly unitOfMeasure: string;
@@ -436,11 +445,39 @@ export type CreateMovementServiceInput = {
 
 export type UpdateMovementServiceInput = Partial<CreateMovementServiceInput>;
 
+export type OrganizationRecord = {
+  readonly id: string;
+  readonly tenantId: string;
+  readonly legalName: string;
+  readonly tradingName: string | null;
+  readonly registrationNumber: string | null;
+  readonly taxNumber: string | null;
+  readonly email: string | null;
+  readonly phone: string | null;
+  readonly status: string;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+};
+
+export type OrganizationListQuery = {
+  readonly page?: number;
+  readonly pageSize?: number;
+  readonly search?: string;
+  readonly status?: string;
+  readonly sortDirection?: SortDirection;
+};
+
 export type BillingEventPayload = {
   readonly source: {
     readonly movementServiceId: string;
     readonly movementId?: string;
     readonly serviceId?: string;
+  };
+  readonly parties?: {
+    readonly serviceProviderOrganizationId?: string | null;
+    readonly serviceReceiverOrganizationId?: string | null;
+    readonly billToOrganizationId?: string | null;
+    readonly payerOrganizationId?: string | null;
   };
   readonly service: {
     readonly quantity?: string;

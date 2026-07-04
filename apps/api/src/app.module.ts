@@ -10,6 +10,7 @@ import { CargoModule } from './modules/cargo/cargo.module.js';
 import { HealthModule } from './modules/health/health.module.js';
 import { MovementServicesModule } from './modules/movement-services/movement-services.module.js';
 import { MovementsModule } from './modules/movements/movements.module.js';
+import { OrganizationsModule } from './modules/organizations/organizations.module.js';
 import { PermissionsModule } from './modules/permissions/permissions.module.js';
 import { PortsModule } from './modules/ports/ports.module.js';
 import { ReportsModule } from './modules/reports/reports.module.js';
@@ -30,6 +31,7 @@ import { AppController } from './app.controller.js';
     VesselCallsModule,
     MovementsModule,
     MovementServicesModule,
+    OrganizationsModule,
     ServicesModule,
     BillingEventsModule,
     BillingExportBatchesModule,

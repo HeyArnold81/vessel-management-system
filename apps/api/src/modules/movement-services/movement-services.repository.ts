@@ -23,6 +23,9 @@ export type NormalizedMovementServiceListQuery = {
   readonly movementId?: string;
   readonly serviceId?: string;
   readonly providerOrganizationId?: string;
+  readonly serviceReceiverOrganizationId?: string;
+  readonly billToOrganizationId?: string;
+  readonly payerOrganizationId?: string;
   readonly isBillable?: boolean;
   readonly sortBy: MovementServiceSortField;
   readonly sortDirection: SortDirection;
@@ -78,6 +81,9 @@ export class PrismaMovementServicesRepository implements MovementServicesReposit
         movementId: input.movementId,
         serviceId: input.serviceId,
         providerOrganizationId: input.providerOrganizationId?.trim() || null,
+        serviceReceiverOrganizationId: input.serviceReceiverOrganizationId?.trim() || null,
+        billToOrganizationId: input.billToOrganizationId?.trim() || null,
+        payerOrganizationId: input.payerOrganizationId?.trim() || null,
         status: input.status ?? 'requested',
         quantity: input.quantity,
         unitOfMeasure: input.unitOfMeasure.trim().toLowerCase(),
@@ -100,6 +106,15 @@ export class PrismaMovementServicesRepository implements MovementServicesReposit
         ...(input.serviceId !== undefined ? { serviceId: input.serviceId } : {}),
         ...(input.providerOrganizationId !== undefined
           ? { providerOrganizationId: input.providerOrganizationId?.trim() || null }
+          : {}),
+        ...(input.serviceReceiverOrganizationId !== undefined
+          ? { serviceReceiverOrganizationId: input.serviceReceiverOrganizationId?.trim() || null }
+          : {}),
+        ...(input.billToOrganizationId !== undefined
+          ? { billToOrganizationId: input.billToOrganizationId?.trim() || null }
+          : {}),
+        ...(input.payerOrganizationId !== undefined
+          ? { payerOrganizationId: input.payerOrganizationId?.trim() || null }
           : {}),
         ...(input.status !== undefined ? { status: input.status } : {}),
         ...(input.quantity !== undefined ? { quantity: input.quantity } : {}),
@@ -132,6 +147,11 @@ export class PrismaMovementServicesRepository implements MovementServicesReposit
       ...(query.providerOrganizationId
         ? { providerOrganizationId: query.providerOrganizationId }
         : {}),
+      ...(query.serviceReceiverOrganizationId
+        ? { serviceReceiverOrganizationId: query.serviceReceiverOrganizationId }
+        : {}),
+      ...(query.billToOrganizationId ? { billToOrganizationId: query.billToOrganizationId } : {}),
+      ...(query.payerOrganizationId ? { payerOrganizationId: query.payerOrganizationId } : {}),
       ...(query.isBillable !== undefined ? { isBillable: query.isBillable } : {}),
     };
   }

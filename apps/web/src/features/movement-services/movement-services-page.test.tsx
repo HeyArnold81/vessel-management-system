@@ -6,6 +6,7 @@ import { MovementServicesPage } from './movement-services-page';
 const tenantId = '11111111-1111-4111-8111-111111111111';
 const movementId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const serviceId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+const organizationId = '99999999-9999-4999-8999-999999999999';
 
 describe('MovementServicesPage', () => {
   afterEach(() => {
@@ -61,6 +62,27 @@ describe('MovementServicesPage', () => {
         });
       }
 
+      if (url.includes('/api/v1/organizations')) {
+        return Response.json({
+          data: [
+            {
+              id: organizationId,
+              tenantId,
+              legalName: 'Peel Ports Demo Operations Ltd',
+              tradingName: 'Peel Ports Demo',
+              registrationNumber: null,
+              taxNumber: null,
+              email: null,
+              phone: null,
+              status: 'active',
+              createdAt: '2026-01-01T00:00:00.000Z',
+              updatedAt: '2026-01-02T00:00:00.000Z',
+            },
+          ],
+          meta: { page: 1, pageSize: 100, totalItems: 1, totalPages: 1 },
+        });
+      }
+
       return Response.json({
         data: [
           {
@@ -68,7 +90,10 @@ describe('MovementServicesPage', () => {
             tenantId,
             movementId,
             serviceId,
-            providerOrganizationId: null,
+            providerOrganizationId: organizationId,
+            serviceReceiverOrganizationId: organizationId,
+            billToOrganizationId: organizationId,
+            payerOrganizationId: organizationId,
             status: 'completed',
             quantity: '1',
             unitOfMeasure: 'job',
@@ -94,6 +119,7 @@ describe('MovementServicesPage', () => {
     );
     expect(screen.getAllByText('MOVE-2026-0001 · arrival')[0]).toBeInTheDocument();
     expect(screen.getByText('1 job')).toBeInTheDocument();
+    expect(screen.getAllByText(/Peel Ports Demo/)[0]).toBeInTheDocument();
   });
 
   it('opens the movement service editor from the workspace action', async () => {

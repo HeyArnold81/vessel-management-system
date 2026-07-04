@@ -11,6 +11,7 @@ import type {
   MovementServiceRecord,
   MovementServiceStatus,
   MovementStatus,
+  OrganizationRecord,
   PaginatedResponse,
   PortRecord,
   ServiceCatalogRecord,
@@ -35,6 +36,7 @@ import {
 import { MovementServiceForm } from '@/features/movement-services/movement-service-form';
 import { createMovement, listMovements, updateMovement } from '@/features/movements/api';
 import { MovementForm } from '@/features/movements/movement-form';
+import { listOrganizations } from '@/features/organizations/api';
 import { listPorts } from '@/features/ports/api';
 import { listServices } from '@/features/services/api';
 import { listVessels } from '@/features/vessels/api';
@@ -74,6 +76,7 @@ export function VesselCallsPage({ initialId = '', initialSearch = '' }: VesselCa
   const [vessels, setVessels] = useState<readonly VesselRecord[]>([]);
   const [ports, setPorts] = useState<readonly PortRecord[]>([]);
   const [services, setServices] = useState<readonly ServiceCatalogRecord[]>([]);
+  const [organizations, setOrganizations] = useState<readonly OrganizationRecord[]>([]);
   const [selectedVesselCall, setSelectedVesselCall] = useState<VesselCallRecord | null>(null);
   const [linkedMovements, setLinkedMovements] = useState<readonly MovementRecord[]>([]);
   const [linkedMovementServices, setLinkedMovementServices] = useState<
@@ -105,6 +108,16 @@ export function VesselCallsPage({ initialId = '', initialSearch = '' }: VesselCa
   const serviceNames = useMemo(
     () => new Map(services.map((service) => [service.id, `${service.name} (${service.code})`])),
     [services],
+  );
+  const organizationNames = useMemo(
+    () =>
+      new Map(
+        organizations.map((organization) => [
+          organization.id,
+          formatOrganizationName(organization),
+        ]),
+      ),
+    [organizations],
   );
   const currentPageSummary = useMemo(() => buildVesselCallSummary(page.data), [page.data]);
 
@@ -141,20 +154,22 @@ export function VesselCallsPage({ initialId = '', initialSearch = '' }: VesselCa
       setSearch(initialSearch);
 
       try {
-        const [vesselResult, portResult, serviceResult, callResult] = await Promise.all([
-          listVessels({ page: 1, pageSize: 100, status: 'active', sortBy: 'name' }),
-          listPorts({ page: 1, pageSize: 100, status: 'active', sortBy: 'name' }),
-          listServices({ page: 1, pageSize: 100, status: 'active', sortBy: 'name' }),
-          initialId
-            ? getVesselCall(initialId)
-            : listVesselCalls({
-                page: 1,
-                pageSize: 10,
-                search: initialSearch,
-                sortBy: 'eta',
-                sortDirection: 'asc',
-              }),
-        ]);
+        const [vesselResult, portResult, serviceResult, organizationResult, callResult] =
+          await Promise.all([
+            listVessels({ page: 1, pageSize: 100, status: 'active', sortBy: 'name' }),
+            listPorts({ page: 1, pageSize: 100, status: 'active', sortBy: 'name' }),
+            listServices({ page: 1, pageSize: 100, status: 'active', sortBy: 'name' }),
+            listOrganizations({ page: 1, pageSize: 100, status: 'active' }),
+            initialId
+              ? getVesselCall(initialId)
+              : listVesselCalls({
+                  page: 1,
+                  pageSize: 10,
+                  search: initialSearch,
+                  sortBy: 'eta',
+                  sortDirection: 'asc',
+                }),
+          ]);
         const nextPage =
           'meta' in callResult
             ? callResult
@@ -166,6 +181,7 @@ export function VesselCallsPage({ initialId = '', initialSearch = '' }: VesselCa
         setVessels(vesselResult.data);
         setPorts(portResult.data);
         setServices(serviceResult.data);
+        setOrganizations(organizationResult.data);
         setPage(nextPage);
         if (!('meta' in callResult)) {
           await selectVesselCall(callResult);
@@ -677,6 +693,7 @@ export function VesselCallsPage({ initialId = '', initialSearch = '' }: VesselCa
           movements={linkedMovements}
           movementServices={linkedMovementServices}
           serviceNames={serviceNames}
+          organizationNames={organizationNames}
           vesselName={
             selectedVesselCall
               ? (vesselNames.get(selectedVesselCall.vesselId) ?? selectedVesselCall.vesselId)
@@ -748,6 +765,7 @@ export function VesselCallsPage({ initialId = '', initialSearch = '' }: VesselCa
           movementService={editingMovementService}
           movements={serviceMovement ? [serviceMovement] : linkedMovements}
           services={services}
+          organizations={organizations}
           isSubmitting={isSubmitting}
           onSubmit={submitMovementService}
           onCancel={closeServiceEditor}
@@ -762,6 +780,7 @@ function OperationalChain({
   movements,
   movementServices,
   serviceNames,
+  organizationNames,
   vesselName,
   portName,
   isLoading,
@@ -777,6 +796,7 @@ function OperationalChain({
   movements: readonly MovementRecord[];
   movementServices: readonly MovementServiceRecord[];
   serviceNames: ReadonlyMap<string, string>;
+  organizationNames: ReadonlyMap<string, string>;
   vesselName: string;
   portName: string;
   isLoading: boolean;
@@ -939,6 +959,28 @@ function OperationalChain({
                             <p className="mt-1 text-xs text-steel">
                               {movementService.isBillable ? 'Billable' : 'Non-billable'}
                             </p>
+                            <div className="mt-2 space-y-0.5 text-xs text-steel">
+                              <PartyLine
+                                label="Provider"
+                                organizationId={movementService.providerOrganizationId}
+                                organizationNames={organizationNames}
+                              />
+                              <PartyLine
+                                label="Receiver"
+                                organizationId={movementService.serviceReceiverOrganizationId}
+                                organizationNames={organizationNames}
+                              />
+                              <PartyLine
+                                label="Bill to"
+                                organizationId={movementService.billToOrganizationId}
+                                organizationNames={organizationNames}
+                              />
+                              <PartyLine
+                                label="Payer"
+                                organizationId={movementService.payerOrganizationId}
+                                organizationNames={organizationNames}
+                              />
+                            </div>
                             <div className="mt-3 flex flex-wrap justify-end gap-2">
                               {serviceTransition ? (
                                 <button
@@ -1009,6 +1051,29 @@ function OperationalSummaryItem({ label, value }: Readonly<{ label: string; valu
       <div className="mt-1 text-sm font-semibold text-ink">{value}</div>
     </div>
   );
+}
+
+function PartyLine({
+  label,
+  organizationId,
+  organizationNames,
+}: Readonly<{
+  label: string;
+  organizationId: string | null;
+  organizationNames: ReadonlyMap<string, string>;
+}>) {
+  return (
+    <p>
+      <span className="font-semibold text-ink">{label}: </span>
+      {organizationId ? (organizationNames.get(organizationId) ?? organizationId) : 'Not set'}
+    </p>
+  );
+}
+
+function formatOrganizationName(organization: OrganizationRecord): string {
+  return organization.tradingName
+    ? `${organization.tradingName} · ${organization.legalName}`
+    : organization.legalName;
 }
 
 function buildVesselCallSummary(items: readonly VesselCallRecord[]) {

@@ -49,20 +49,20 @@ model User {
 }
 
 model Role {
-  id              String           @id @default(uuid()) @db.Uuid
-  tenantId        String?          @map("tenant_id") @db.Uuid
-  code            String
-  name            String
-  description     String?
-  status          String           @default("active")
-  isSystemRole    Boolean          @default(false) @map("is_system_role")
-  isPrivileged    Boolean          @default(false) @map("is_privileged")
-  requiresApproval Boolean         @default(false) @map("requires_approval")
-  users           UserRole[]
-  rolePermissions RolePermission[]
-  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
-  deletedAt       DateTime?        @map("deleted_at") @db.Timestamptz(6)
+  id               String           @id @default(uuid()) @db.Uuid
+  tenantId         String?          @map("tenant_id") @db.Uuid
+  code             String
+  name             String
+  description      String?
+  status           String           @default("active")
+  isSystemRole     Boolean          @default(false) @map("is_system_role")
+  isPrivileged     Boolean          @default(false) @map("is_privileged")
+  requiresApproval Boolean          @default(false) @map("requires_approval")
+  users            UserRole[]
+  rolePermissions  RolePermission[]
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt        DateTime?        @map("deleted_at") @db.Timestamptz(6)
 
   @@unique([tenantId, code])
   @@index([tenantId, status])
@@ -135,24 +135,27 @@ model Country {
 }
 
 model Organization {
-  id                  String            @id @default(uuid()) @db.Uuid
-  tenantId            String            @map("tenant_id") @db.Uuid
-  tenant              Tenant            @relation(fields: [tenantId], references: [id])
-  legalName           String            @map("legal_name")
-  tradingName         String?           @map("trading_name")
-  registrationNumber  String?           @map("registration_number")
-  taxNumber           String?           @map("tax_number")
-  email               String?
-  phone               String?
-  status              String            @default("active")
-  vesselParties       VesselParty[]
-  agentVesselCalls    VesselCall[]      @relation("VesselCallAgent")
-  operatorVesselCalls VesselCall[]      @relation("VesselCallOperator")
-  movementServices    MovementService[]
-  invoices            Invoice[]
-  createdAt           DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt           DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
-  deletedAt           DateTime?         @map("deleted_at") @db.Timestamptz(6)
+  id                       String            @id @default(uuid()) @db.Uuid
+  tenantId                 String            @map("tenant_id") @db.Uuid
+  tenant                   Tenant            @relation(fields: [tenantId], references: [id])
+  legalName                String            @map("legal_name")
+  tradingName              String?           @map("trading_name")
+  registrationNumber       String?           @map("registration_number")
+  taxNumber                String?           @map("tax_number")
+  email                    String?
+  phone                    String?
+  status                   String            @default("active")
+  vesselParties            VesselParty[]
+  agentVesselCalls         VesselCall[]      @relation("VesselCallAgent")
+  operatorVesselCalls      VesselCall[]      @relation("VesselCallOperator")
+  providedMovementServices MovementService[] @relation("MovementServiceProvider")
+  receivedMovementServices MovementService[] @relation("MovementServiceReceiver")
+  billToMovementServices   MovementService[] @relation("MovementServiceBillTo")
+  payerMovementServices    MovementService[] @relation("MovementServicePayer")
+  invoices                 Invoice[]
+  createdAt                DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt                DateTime?         @map("deleted_at") @db.Timestamptz(6)
 
   @@index([tenantId, legalName])
   @@map("organizations")
@@ -459,27 +462,36 @@ model ServiceCatalog {
 }
 
 model MovementService {
-  id                     String         @id @default(uuid()) @db.Uuid
-  tenantId               String         @map("tenant_id") @db.Uuid
-  movementId             String         @map("movement_id") @db.Uuid
-  serviceId              String         @map("service_id") @db.Uuid
-  providerOrganizationId String?        @map("provider_organization_id") @db.Uuid
-  status                 String         @default("requested")
-  quantity               Decimal        @db.Decimal(14, 3)
-  unitOfMeasure          String         @map("unit_of_measure")
-  requestedAt            DateTime?      @map("requested_at") @db.Timestamptz(6)
-  completedAt            DateTime?      @map("completed_at") @db.Timestamptz(6)
-  isBillable             Boolean        @default(true) @map("is_billable")
-  movement               VesselMovement @relation(fields: [movementId], references: [id])
-  service                ServiceCatalog @relation(fields: [serviceId], references: [id])
-  providerOrganization   Organization?  @relation(fields: [providerOrganizationId], references: [id])
-  invoiceLines           InvoiceLine[]
-  billingEvents          BillingEvent[]
-  createdAt              DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt              DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                            String         @id @default(uuid()) @db.Uuid
+  tenantId                      String         @map("tenant_id") @db.Uuid
+  movementId                    String         @map("movement_id") @db.Uuid
+  serviceId                     String         @map("service_id") @db.Uuid
+  providerOrganizationId        String?        @map("provider_organization_id") @db.Uuid
+  serviceReceiverOrganizationId String?        @map("service_receiver_organization_id") @db.Uuid
+  billToOrganizationId          String?        @map("bill_to_organization_id") @db.Uuid
+  payerOrganizationId           String?        @map("payer_organization_id") @db.Uuid
+  status                        String         @default("requested")
+  quantity                      Decimal        @db.Decimal(14, 3)
+  unitOfMeasure                 String         @map("unit_of_measure")
+  requestedAt                   DateTime?      @map("requested_at") @db.Timestamptz(6)
+  completedAt                   DateTime?      @map("completed_at") @db.Timestamptz(6)
+  isBillable                    Boolean        @default(true) @map("is_billable")
+  movement                      VesselMovement @relation(fields: [movementId], references: [id])
+  service                       ServiceCatalog @relation(fields: [serviceId], references: [id])
+  providerOrganization          Organization?  @relation("MovementServiceProvider", fields: [providerOrganizationId], references: [id])
+  serviceReceiverOrganization   Organization?  @relation("MovementServiceReceiver", fields: [serviceReceiverOrganizationId], references: [id])
+  billToOrganization            Organization?  @relation("MovementServiceBillTo", fields: [billToOrganizationId], references: [id])
+  payerOrganization             Organization?  @relation("MovementServicePayer", fields: [payerOrganizationId], references: [id])
+  invoiceLines                  InvoiceLine[]
+  billingEvents                 BillingEvent[]
+  createdAt                     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                     DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@index([movementId])
   @@index([providerOrganizationId, status])
+  @@index([serviceReceiverOrganizationId, status])
+  @@index([billToOrganizationId, status])
+  @@index([payerOrganizationId, status])
   @@index([tenantId, status])
   @@index([tenantId, isBillable, completedAt])
   @@map("movement_services")
