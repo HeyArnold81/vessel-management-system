@@ -263,7 +263,8 @@ describe('VesselCallsPage', () => {
 
     expect(await screen.findByText('MOVE-2026-0001')).toBeInTheDocument();
     expect(screen.getByText('Harbour Pilotage (PILOTAGE)')).toBeInTheDocument();
-    expect(screen.getByText('Vessel call -> movements -> movement services')).toBeInTheDocument();
+    expect(screen.getByText('MV Enterprise (9341234) · Felixstowe (GBFXT)')).toBeInTheDocument();
+    expect(screen.getByText('1 movements · 1 services')).toBeInTheDocument();
     expect(await screen.findByText('Vessel call update')).toBeInTheDocument();
     expect(screen.getByText('Status changed from expected to arrived')).toBeInTheDocument();
   });

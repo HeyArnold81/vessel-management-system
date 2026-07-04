@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import type { KeyboardEvent } from 'react';
+import type { KeyboardEvent, ReactNode } from 'react';
 
 import type {
   CreateMovementInput,
@@ -20,6 +20,7 @@ import type {
 } from '@vms/shared';
 import { vesselCallStatuses } from '@vms/shared';
 
+import { ActionMenu, ActionMenuItem } from '@/components/ui/action-menu';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PageHeader } from '@/components/ui/page-header';
 import { SlideOver } from '@/components/ui/slide-over';
@@ -574,12 +575,19 @@ export function VesselCallsPage({ initialId = '', initialSearch = '' }: VesselCa
                       onKeyDown={(event) => handleVesselCallRowKeyDown(event, vesselCall)}
                       className={
                         selectedVesselCall?.id === vesselCall.id
-                          ? 'cursor-pointer bg-surface outline-none ring-1 ring-inset ring-harbor/30'
+                          ? 'cursor-pointer border-l-4 border-harbor bg-surface outline-none ring-1 ring-inset ring-harbor/30'
                           : 'cursor-pointer hover:bg-surface/70 focus:bg-surface focus:outline-none focus:ring-1 focus:ring-inset focus:ring-harbor/30'
                       }
                     >
                       <td className="px-5 py-3 pr-4 font-semibold text-ink">
-                        <span className="font-semibold text-ink">{vesselCall.callReference}</span>
+                        <span className="inline-flex items-center gap-2 font-semibold text-ink">
+                          {vesselCall.callReference}
+                          {selectedVesselCall?.id === vesselCall.id ? (
+                            <span className="rounded-full bg-harbor/10 px-2 py-0.5 text-xs font-semibold text-harbor">
+                              Selected
+                            </span>
+                          ) : null}
+                        </span>
                         {vesselCall.voyageNumber ? (
                           <p className="mt-1 text-xs font-normal text-steel">
                             Voyage {vesselCall.voyageNumber}
@@ -598,26 +606,20 @@ export function VesselCallsPage({ initialId = '', initialSearch = '' }: VesselCa
                         <StatusBadge status={vesselCall.status} />
                       </td>
                       <td className="px-5 py-3 text-right">
-                        <div className="flex justify-end gap-2">
-                          <button
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              openEditPanel(vesselCall);
-                            }}
-                            className="rounded-md border border-slate-300 px-3 py-1.5 font-semibold text-steel"
+                        <ActionMenu>
+                          <ActionMenuItem onClick={() => void selectVesselCall(vesselCall)}>
+                            View operations
+                          </ActionMenuItem>
+                          <ActionMenuItem onClick={() => openEditPanel(vesselCall)}>
+                            Edit call
+                          </ActionMenuItem>
+                          <ActionMenuItem
+                            destructive
+                            onClick={() => void removeVesselCall(vesselCall)}
                           >
-                            Edit
-                          </button>
-                          <button
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              void removeVesselCall(vesselCall);
-                            }}
-                            className="rounded-md border border-red-200 px-3 py-1.5 font-semibold text-red-700"
-                          >
-                            Delete
-                          </button>
-                        </div>
+                            Delete call
+                          </ActionMenuItem>
+                        </ActionMenu>
                       </td>
                     </tr>
                   ))}
@@ -630,6 +632,15 @@ export function VesselCallsPage({ initialId = '', initialSearch = '' }: VesselCa
                 <EmptyState
                   title="No vessel calls match this view"
                   description="Adjust the filters or create a new vessel call to start planning an arrival, departure, or berth stay."
+                  action={
+                    <button
+                      type="button"
+                      onClick={openCreatePanel}
+                      className="rounded-md bg-harbor px-3 py-1.5 text-sm font-semibold text-white"
+                    >
+                      New vessel call
+                    </button>
+                  }
                 />
               </div>
             ) : null}
@@ -666,6 +677,16 @@ export function VesselCallsPage({ initialId = '', initialSearch = '' }: VesselCa
           movements={linkedMovements}
           movementServices={linkedMovementServices}
           serviceNames={serviceNames}
+          vesselName={
+            selectedVesselCall
+              ? (vesselNames.get(selectedVesselCall.vesselId) ?? selectedVesselCall.vesselId)
+              : ''
+          }
+          portName={
+            selectedVesselCall
+              ? (portNames.get(selectedVesselCall.portId) ?? selectedVesselCall.portId)
+              : ''
+          }
           isLoading={isWorkflowLoading}
           onAddMovement={() => setIsMovementEditorOpen(true)}
           onAttachService={openCreateServicePanel}
@@ -741,6 +762,8 @@ function OperationalChain({
   movements,
   movementServices,
   serviceNames,
+  vesselName,
+  portName,
   isLoading,
   onAddMovement,
   onAttachService,
@@ -754,6 +777,8 @@ function OperationalChain({
   movements: readonly MovementRecord[];
   movementServices: readonly MovementServiceRecord[];
   serviceNames: ReadonlyMap<string, string>;
+  vesselName: string;
+  portName: string;
   isLoading: boolean;
   onAddMovement: () => void;
   onAttachService: (movement: MovementRecord) => void;
@@ -789,7 +814,7 @@ function OperationalChain({
           <div>
             <h2 className="text-lg font-semibold text-ink">{vesselCall.callReference}</h2>
             <p className="mt-1 text-sm text-steel">
-              {'Vessel call -> movements -> movement services'}
+              {vesselName} · {portName}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -814,6 +839,16 @@ function OperationalChain({
         </div>
       </div>
 
+      <div className="grid gap-3 border-b border-line bg-surface/60 px-5 py-4 md:grid-cols-4">
+        <OperationalSummaryItem label="Status" value={<StatusBadge status={vesselCall.status} />} />
+        <OperationalSummaryItem label="ETA" value={formatDateTime(vesselCall.eta)} />
+        <OperationalSummaryItem label="ETD" value={formatDateTime(vesselCall.etd)} />
+        <OperationalSummaryItem
+          label="Chain"
+          value={`${movements.length} movements · ${movementServices.length} services`}
+        />
+      </div>
+
       {isLoading ? (
         <p className="px-5 py-8 text-center text-sm text-steel">Loading operational chain...</p>
       ) : null}
@@ -823,6 +858,15 @@ function OperationalChain({
           <EmptyState
             title="No movements linked to this vessel call"
             description="Create a movement for this call before attaching pilotage, towage, mooring, cargo, or billing services."
+            action={
+              <button
+                type="button"
+                onClick={onAddMovement}
+                className="rounded-md bg-harbor px-3 py-1.5 text-sm font-semibold text-white"
+              >
+                Add movement
+              </button>
+            }
           />
         </div>
       ) : null}
@@ -954,6 +998,15 @@ function KpiCard({
       <p className="text-xs font-semibold uppercase tracking-wide text-steel">{label}</p>
       <p className="mt-2 text-3xl font-semibold text-ink">{value}</p>
       <p className="mt-1 text-sm text-steel">{detail}</p>
+    </div>
+  );
+}
+
+function OperationalSummaryItem({ label, value }: Readonly<{ label: string; value: ReactNode }>) {
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-wide text-steel">{label}</p>
+      <div className="mt-1 text-sm font-semibold text-ink">{value}</div>
     </div>
   );
 }

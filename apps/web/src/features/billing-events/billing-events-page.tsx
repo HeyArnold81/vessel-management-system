@@ -13,6 +13,7 @@ import type {
 } from '@vms/shared';
 import { billingEventStatuses } from '@vms/shared';
 
+import { ActionMenu, ActionMenuItem } from '@/components/ui/action-menu';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PageHeader } from '@/components/ui/page-header';
 import { SlideOver } from '@/components/ui/slide-over';
@@ -353,11 +354,21 @@ export function BillingEventsPage({ initialId = '', initialSearch = '' }: Billin
                       className="cursor-pointer hover:bg-surface/70 focus:bg-surface focus:outline-none focus:ring-1 focus:ring-inset focus:ring-harbor/30"
                     >
                       <td className="px-5 py-3 pr-4 font-semibold text-ink">
-                        {billingEvent.eventReference}
+                        <span>{billingEvent.eventReference}</span>
+                        {billingEvent.failureReason ? (
+                          <p className="mt-1 text-xs font-normal text-red-700">
+                            {billingEvent.failureReason}
+                          </p>
+                        ) : null}
                       </td>
                       <td className="py-3 pr-4 text-steel">
-                        {movementServiceLabels.get(billingEvent.movementServiceId) ??
-                          billingEvent.movementServiceId}
+                        <p className="font-medium text-ink">
+                          {movementServiceLabels.get(billingEvent.movementServiceId) ??
+                            'Movement service'}
+                        </p>
+                        <p className="mt-1 text-xs text-steel">
+                          {buildBillingEvidenceLabel(billingEvent)}
+                        </p>
                       </td>
                       <td className="py-3 pr-4">
                         <StatusBadge status={billingEvent.status} />
@@ -367,26 +378,17 @@ export function BillingEventsPage({ initialId = '', initialSearch = '' }: Billin
                         {formatDateTime(billingEvent.exportedAt)}
                       </td>
                       <td className="px-5 py-3 text-right">
-                        <div className="flex justify-end gap-2">
-                          <button
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              openEditPanel(billingEvent);
-                            }}
-                            className="rounded-md border border-slate-300 px-3 py-1.5 font-semibold text-steel"
+                        <ActionMenu>
+                          <ActionMenuItem onClick={() => openEditPanel(billingEvent)}>
+                            Review event
+                          </ActionMenuItem>
+                          <ActionMenuItem
+                            destructive
+                            onClick={() => void rejectBillingEvent(billingEvent)}
                           >
-                            Edit
-                          </button>
-                          <button
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              void rejectBillingEvent(billingEvent);
-                            }}
-                            className="rounded-md border border-red-200 px-3 py-1.5 font-semibold text-red-700"
-                          >
-                            Reject
-                          </button>
-                        </div>
+                            Reject event
+                          </ActionMenuItem>
+                        </ActionMenu>
                       </td>
                     </tr>
                   ))}
@@ -399,6 +401,15 @@ export function BillingEventsPage({ initialId = '', initialSearch = '' }: Billin
                 <EmptyState
                   title="No billing events match this view"
                   description="Adjust the filters or create a billing event from a completed billable movement service."
+                  action={
+                    <button
+                      type="button"
+                      onClick={openCreatePanel}
+                      className="rounded-md bg-harbor px-3 py-1.5 text-sm font-semibold text-white"
+                    >
+                      New billing event
+                    </button>
+                  }
                 />
               </div>
             ) : null}
@@ -471,6 +482,22 @@ function buildBillingSummary(items: readonly BillingEventRecord[]) {
     onHold: items.filter((item) => item.status === 'on_hold').length,
     exported: items.filter((item) => item.status === 'exported').length,
   };
+}
+
+function buildBillingEvidenceLabel(billingEvent: BillingEventRecord): string {
+  const source = billingEvent.payload.source;
+  const service = billingEvent.payload.service;
+  const completedAt = formatDateTime(service?.completedAt ?? null);
+
+  const sourceDetail = source?.movementId
+    ? `Movement ${formatShortId(source.movementId)}`
+    : `Service ${formatShortId(source?.movementServiceId ?? billingEvent.movementServiceId)}`;
+
+  return completedAt === '-' ? sourceDetail : `${sourceDetail} · Completed ${completedAt}`;
+}
+
+function formatShortId(value: string): string {
+  return value.slice(0, 8);
 }
 
 function formatDateTime(value: string | null): string {
