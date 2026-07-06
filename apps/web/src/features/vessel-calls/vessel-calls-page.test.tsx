@@ -64,6 +64,26 @@ describe('VesselCallsPage', () => {
         });
       }
 
+      if (url.includes('/api/v1/berths')) {
+        return Response.json({
+          data: [
+            {
+              id: '11111111-2222-4333-8444-555555555555',
+              tenantId,
+              terminalId: '66666666-6666-4666-8666-666666666666',
+              code: 'TRINITY-1',
+              name: 'Trinity Berth 1',
+              maxLengthM: '300',
+              maxDraftM: '12',
+              status: 'active',
+              createdAt: '2026-01-01T00:00:00.000Z',
+              updatedAt: '2026-01-01T00:00:00.000Z',
+            },
+          ],
+          meta: { page: 1, pageSize: 100, totalItems: 1, totalPages: 1 },
+        });
+      }
+
       if (url.includes('/api/v1/services')) {
         return Response.json({
           data: [
@@ -292,7 +312,12 @@ describe('VesselCallsPage', () => {
     expect(await screen.findByText('MOVE-2026-0001')).toBeInTheDocument();
     expect(screen.getByText('Harbour Pilotage (PILOTAGE)')).toBeInTheDocument();
     expect(screen.getAllByText(/Peel Ports Demo/)[0]).toBeInTheDocument();
-    expect(screen.getByText('MV Enterprise (9341234) · Felixstowe (GBFXT)')).toBeInTheDocument();
+    expect(
+      screen.getByText('MV Enterprise (9341234) · Felixstowe (GBFXT) · Not assigned'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Berth required')).toBeInTheDocument();
+    expect(screen.getByText('Assign a berth')).toBeInTheDocument();
+    expect(screen.getByText('Billing readiness')).toBeInTheDocument();
     expect(screen.getByText('1 movements · 1 services')).toBeInTheDocument();
     expect(await screen.findByText('Vessel call update')).toBeInTheDocument();
     expect(screen.getByText('Status changed from expected to arrived')).toBeInTheDocument();

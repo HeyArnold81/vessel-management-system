@@ -68,6 +68,10 @@ describe('DashboardShell', () => {
     render(<DashboardShell />);
 
     expect(screen.getByRole('heading', { name: 'Vessel Management System' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open berth board' })).toHaveAttribute(
+      'href',
+      '/berth-board',
+    );
     expect(screen.getByText('Active port calls')).toBeInTheDocument();
     expect(await screen.findByText('Arrival: LIV-2026-0002')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Arrival: LIV-2026-0002' })).toHaveAttribute(

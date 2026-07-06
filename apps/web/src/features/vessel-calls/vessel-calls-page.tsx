@@ -7,6 +7,7 @@ import type {
   CreateMovementInput,
   CreateMovementServiceInput,
   CreateVesselCallInput,
+  BerthRecord,
   MovementRecord,
   MovementServiceRecord,
   MovementServiceStatus,
@@ -27,6 +28,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { SlideOver } from '@/components/ui/slide-over';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { AuditLogPanel } from '@/features/audit/audit-log-panel';
+import { listBerths } from '@/features/berths/api';
 import {
   createMovementService,
   deleteMovementService,
@@ -75,6 +77,7 @@ export function VesselCallsPage({ initialId = '', initialSearch = '' }: VesselCa
   const [page, setPage] = useState(initialPage);
   const [vessels, setVessels] = useState<readonly VesselRecord[]>([]);
   const [ports, setPorts] = useState<readonly PortRecord[]>([]);
+  const [berths, setBerths] = useState<readonly BerthRecord[]>([]);
   const [services, setServices] = useState<readonly ServiceCatalogRecord[]>([]);
   const [organizations, setOrganizations] = useState<readonly OrganizationRecord[]>([]);
   const [selectedVesselCall, setSelectedVesselCall] = useState<VesselCallRecord | null>(null);
@@ -104,6 +107,10 @@ export function VesselCallsPage({ initialId = '', initialSearch = '' }: VesselCa
   const portNames = useMemo(
     () => new Map(ports.map((port) => [port.id, `${port.name} (${port.unlocode})`])),
     [ports],
+  );
+  const berthNames = useMemo(
+    () => new Map(berths.map((berth) => [berth.id, `${berth.name} (${berth.code})`])),
+    [berths],
   );
   const serviceNames = useMemo(
     () => new Map(services.map((service) => [service.id, `${service.name} (${service.code})`])),
@@ -154,22 +161,29 @@ export function VesselCallsPage({ initialId = '', initialSearch = '' }: VesselCa
       setSearch(initialSearch);
 
       try {
-        const [vesselResult, portResult, serviceResult, organizationResult, callResult] =
-          await Promise.all([
-            listVessels({ page: 1, pageSize: 100, status: 'active', sortBy: 'name' }),
-            listPorts({ page: 1, pageSize: 100, status: 'active', sortBy: 'name' }),
-            listServices({ page: 1, pageSize: 100, status: 'active', sortBy: 'name' }),
-            listOrganizations({ page: 1, pageSize: 100, status: 'active' }),
-            initialId
-              ? getVesselCall(initialId)
-              : listVesselCalls({
-                  page: 1,
-                  pageSize: 10,
-                  search: initialSearch,
-                  sortBy: 'eta',
-                  sortDirection: 'asc',
-                }),
-          ]);
+        const [
+          vesselResult,
+          portResult,
+          berthResult,
+          serviceResult,
+          organizationResult,
+          callResult,
+        ] = await Promise.all([
+          listVessels({ page: 1, pageSize: 100, status: 'active', sortBy: 'name' }),
+          listPorts({ page: 1, pageSize: 100, status: 'active', sortBy: 'name' }),
+          listBerths({ page: 1, pageSize: 100, status: 'active', sortBy: 'name' }),
+          listServices({ page: 1, pageSize: 100, status: 'active', sortBy: 'name' }),
+          listOrganizations({ page: 1, pageSize: 100, status: 'active' }),
+          initialId
+            ? getVesselCall(initialId)
+            : listVesselCalls({
+                page: 1,
+                pageSize: 10,
+                search: initialSearch,
+                sortBy: 'eta',
+                sortDirection: 'asc',
+              }),
+        ]);
         const nextPage =
           'meta' in callResult
             ? callResult
@@ -180,6 +194,7 @@ export function VesselCallsPage({ initialId = '', initialSearch = '' }: VesselCa
 
         setVessels(vesselResult.data);
         setPorts(portResult.data);
+        setBerths(berthResult.data);
         setServices(serviceResult.data);
         setOrganizations(organizationResult.data);
         setPage(nextPage);
@@ -203,13 +218,18 @@ export function VesselCallsPage({ initialId = '', initialSearch = '' }: VesselCa
     setError(null);
 
     try {
+      let savedVesselCall: VesselCallRecord;
+
       if (editingVesselCall) {
-        await updateVesselCall(editingVesselCall.id, input);
+        savedVesselCall = await updateVesselCall(editingVesselCall.id, input);
       } else {
-        await createVesselCall(input);
+        savedVesselCall = await createVesselCall(input);
       }
       setIsEditorOpen(false);
       setEditingVesselCall(undefined);
+      if (selectedVesselCall?.id === savedVesselCall.id) {
+        await selectVesselCall(savedVesselCall);
+      }
       await loadVesselCalls(1);
     } catch (caught) {
       setError(caught instanceof ApiClientError ? caught.message : 'Unable to save vessel call.');
@@ -694,6 +714,11 @@ export function VesselCallsPage({ initialId = '', initialSearch = '' }: VesselCa
           movementServices={linkedMovementServices}
           serviceNames={serviceNames}
           organizationNames={organizationNames}
+          berthName={
+            selectedVesselCall?.berthId
+              ? (berthNames.get(selectedVesselCall.berthId) ?? selectedVesselCall.berthId)
+              : 'Not assigned'
+          }
           vesselName={
             selectedVesselCall
               ? (vesselNames.get(selectedVesselCall.vesselId) ?? selectedVesselCall.vesselId)
@@ -706,6 +731,7 @@ export function VesselCallsPage({ initialId = '', initialSearch = '' }: VesselCa
           }
           isLoading={isWorkflowLoading}
           onAddMovement={() => setIsMovementEditorOpen(true)}
+          onEditVesselCall={openEditPanel}
           onAttachService={openCreateServicePanel}
           onEditService={openEditServicePanel}
           onDeleteService={removeMovementService}
@@ -781,10 +807,12 @@ function OperationalChain({
   movementServices,
   serviceNames,
   organizationNames,
+  berthName,
   vesselName,
   portName,
   isLoading,
   onAddMovement,
+  onEditVesselCall,
   onAttachService,
   onEditService,
   onDeleteService,
@@ -797,10 +825,12 @@ function OperationalChain({
   movementServices: readonly MovementServiceRecord[];
   serviceNames: ReadonlyMap<string, string>;
   organizationNames: ReadonlyMap<string, string>;
+  berthName: string;
   vesselName: string;
   portName: string;
   isLoading: boolean;
   onAddMovement: () => void;
+  onEditVesselCall: (vesselCall: VesselCallRecord) => void;
   onAttachService: (movement: MovementRecord) => void;
   onEditService: (movementService: MovementServiceRecord) => void;
   onDeleteService: (movementService: MovementServiceRecord) => void;
@@ -823,22 +853,44 @@ function OperationalChain({
   }
 
   const vesselCallTransition = getVesselCallTransition(vesselCall.status);
+  const readiness = getOperationalReadiness(vesselCall, movements, movementServices);
+  const nextStep = getNextOperationalStep(vesselCall, movements, movementServices);
+  const billableCompletedServices = movementServices.filter(
+    (service) => service.isBillable && service.status === 'completed',
+  ).length;
+  const billablePendingServices = movementServices.filter(
+    (service) => service.isBillable && service.status !== 'completed',
+  ).length;
+  const agentName = vesselCall.agentId
+    ? (organizationNames.get(vesselCall.agentId) ?? vesselCall.agentId)
+    : 'Not assigned';
+  const operatorName = vesselCall.operatorId
+    ? (organizationNames.get(vesselCall.operatorId) ?? vesselCall.operatorId)
+    : 'Not assigned';
 
   return (
     <section className="rounded-lg border border-line bg-panel shadow-panel">
-      <div className="border-b border-line px-5 py-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-harbor">
-          Operational chain
-        </p>
-        <div className="mt-1 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-ink">{vesselCall.callReference}</h2>
-            <p className="mt-1 text-sm text-steel">
-              {vesselName} · {portName}
+      <div className="border-b border-line px-5 py-5">
+        <div className="grid gap-5 xl:grid-cols-[1fr_auto] xl:items-start">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-wide text-harbor">
+              Vessel call workspace
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              <h2 className="text-2xl font-semibold text-ink">{vesselCall.callReference}</h2>
+              <StatusBadge status={vesselCall.status} />
+              <span
+                className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${readiness.className}`}
+              >
+                {readiness.label}
+              </span>
+            </div>
+            <p className="mt-2 text-sm text-steel">
+              {vesselName} · {portName} · {berthName}
             </p>
           </div>
+
           <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge status={vesselCall.status} />
             {vesselCallTransition ? (
               <button
                 type="button"
@@ -855,17 +907,46 @@ function OperationalChain({
             >
               Add movement
             </button>
+            <button
+              type="button"
+              onClick={() => onEditVesselCall(vesselCall)}
+              className="rounded-md border border-line px-3 py-1.5 text-sm font-semibold text-steel"
+            >
+              Edit call details
+            </button>
           </div>
+        </div>
+
+        <div className="mt-5 rounded-md border border-line bg-surface px-4 py-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-steel">Next action</p>
+          <p className="mt-1 text-sm font-semibold text-ink">{nextStep.title}</p>
+          <p className="mt-1 text-sm leading-6 text-steel">{nextStep.detail}</p>
         </div>
       </div>
 
-      <div className="grid gap-3 border-b border-line bg-surface/60 px-5 py-4 md:grid-cols-4">
+      <div className="grid gap-3 border-b border-line bg-surface/60 px-5 py-4 md:grid-cols-2 xl:grid-cols-4">
         <OperationalSummaryItem label="Status" value={<StatusBadge status={vesselCall.status} />} />
+        <OperationalSummaryItem label="Berth" value={berthName} />
         <OperationalSummaryItem label="ETA" value={formatDateTime(vesselCall.eta)} />
         <OperationalSummaryItem label="ETD" value={formatDateTime(vesselCall.etd)} />
+        <OperationalSummaryItem label="ATA" value={formatDateTime(vesselCall.ata)} />
+        <OperationalSummaryItem label="ATD" value={formatDateTime(vesselCall.atd)} />
         <OperationalSummaryItem
           label="Chain"
           value={`${movements.length} movements · ${movementServices.length} services`}
+        />
+        <OperationalSummaryItem
+          label="Billing readiness"
+          value={`${billableCompletedServices} ready · ${billablePendingServices} pending`}
+        />
+      </div>
+
+      <div className="grid gap-3 border-b border-line px-5 py-4 md:grid-cols-3">
+        <OperationalSummaryItem label="Agent" value={agentName} />
+        <OperationalSummaryItem label="Operator" value={operatorName} />
+        <OperationalSummaryItem
+          label="Voyage"
+          value={vesselCall.voyageNumber ? vesselCall.voyageNumber : 'Not set'}
         />
       </div>
 
@@ -1129,6 +1210,103 @@ function getMovementServiceTransition(
     default:
       return null;
   }
+}
+
+function getOperationalReadiness(
+  vesselCall: VesselCallRecord,
+  movements: readonly MovementRecord[],
+  movementServices: readonly MovementServiceRecord[],
+) {
+  if (!vesselCall.berthId) {
+    return {
+      label: 'Berth required',
+      className: 'border-amber-200 bg-amber-50 text-amber-800',
+    };
+  }
+
+  if (movements.length === 0) {
+    return {
+      label: 'Movement required',
+      className: 'border-amber-200 bg-amber-50 text-amber-800',
+    };
+  }
+
+  const hasOpenServices = movementServices.some((service) =>
+    ['requested', 'scheduled', 'in_progress', 'on_hold'].includes(service.status),
+  );
+
+  if (hasOpenServices) {
+    return {
+      label: 'Services active',
+      className: 'border-blue-200 bg-blue-50 text-blue-700',
+    };
+  }
+
+  if (vesselCall.status === 'departed') {
+    return {
+      label: 'Visit complete',
+      className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    };
+  }
+
+  return {
+    label: 'Operationally ready',
+    className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  };
+}
+
+function getNextOperationalStep(
+  vesselCall: VesselCallRecord,
+  movements: readonly MovementRecord[],
+  movementServices: readonly MovementServiceRecord[],
+) {
+  if (!vesselCall.berthId) {
+    return {
+      title: 'Assign a berth',
+      detail: 'This call is visible in the Berth Board planning queue until a berth is selected.',
+    };
+  }
+
+  if (movements.length === 0) {
+    return {
+      title: 'Create the first movement',
+      detail:
+        'Add an arrival, departure, berth shift, pilotage, or towage movement to start the operational chain.',
+    };
+  }
+
+  const nextMovement = movements.find((movement) => movement.status !== 'completed');
+
+  if (nextMovement) {
+    return {
+      title: `Progress ${nextMovement.movementReference}`,
+      detail: `The next movement is ${nextMovement.movementType.replaceAll('_', ' ')} planned for ${formatDateTime(nextMovement.plannedAt)}.`,
+    };
+  }
+
+  const openBillableServices = movementServices.filter(
+    (service) => service.isBillable && service.status !== 'completed',
+  );
+
+  if (openBillableServices.length > 0) {
+    return {
+      title: 'Complete billable services',
+      detail: `${openBillableServices.length} billable services still need completion before billing is ready.`,
+    };
+  }
+
+  if (vesselCall.status !== 'departed') {
+    return {
+      title: 'Close out the vessel call',
+      detail: 'Movements are complete. Confirm departure status when the vessel has sailed.',
+    };
+  }
+
+  return {
+    title: 'Review audit and billing handoff',
+    detail:
+      'The operational visit is complete. Review audit history and billing readiness before export.',
+  };
 }
 
 function formatDateTime(value: string | null): string {
