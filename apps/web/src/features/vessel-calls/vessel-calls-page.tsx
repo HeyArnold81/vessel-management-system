@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import type { KeyboardEvent, ReactNode } from 'react';
+import type { FormEvent, KeyboardEvent, ReactNode } from 'react';
 
 import type {
   CreateMovementInput,
@@ -92,6 +92,7 @@ export function VesselCallsPage({ initialId = '', initialSearch = '' }: VesselCa
   const [isWorkflowLoading, setIsWorkflowLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [isBerthAssignmentOpen, setIsBerthAssignmentOpen] = useState(false);
   const [isMovementEditorOpen, setIsMovementEditorOpen] = useState(false);
   const [serviceMovement, setServiceMovement] = useState<MovementRecord | null>(null);
   const [editingMovementService, setEditingMovementService] = useState<
@@ -345,6 +346,25 @@ export function VesselCallsPage({ initialId = '', initialSearch = '' }: VesselCa
     }
   }
 
+  async function assignBerth(vesselCall: VesselCallRecord, berthId: string | null) {
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      const updated = await updateVesselCall(vesselCall.id, { berthId });
+      setPage((current) => ({
+        ...current,
+        data: current.data.map((item) => (item.id === updated.id ? updated : item)),
+      }));
+      setIsBerthAssignmentOpen(false);
+      await selectVesselCall(updated);
+    } catch (caught) {
+      setError(caught instanceof ApiClientError ? caught.message : 'Unable to assign berth.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   async function advanceMovementStatus(movement: MovementRecord, nextStatus: MovementStatus) {
     if (!selectedVesselCall) {
       return;
@@ -434,9 +454,17 @@ export function VesselCallsPage({ initialId = '', initialSearch = '' }: VesselCa
     setIsEditorOpen(true);
   }
 
+  function openBerthAssignmentPanel() {
+    setIsBerthAssignmentOpen(true);
+  }
+
   function closeEditor() {
     setIsEditorOpen(false);
     setEditingVesselCall(undefined);
+  }
+
+  function closeBerthAssignmentPanel() {
+    setIsBerthAssignmentOpen(false);
   }
 
   function closeMovementEditor() {
@@ -731,6 +759,7 @@ export function VesselCallsPage({ initialId = '', initialSearch = '' }: VesselCa
           }
           isLoading={isWorkflowLoading}
           onAddMovement={() => setIsMovementEditorOpen(true)}
+          onAssignBerth={openBerthAssignmentPanel}
           onEditVesselCall={openEditPanel}
           onAttachService={openCreateServicePanel}
           onEditService={openEditServicePanel}
@@ -764,6 +793,30 @@ export function VesselCallsPage({ initialId = '', initialSearch = '' }: VesselCa
           onSubmit={submitVesselCall}
           onCancel={closeEditor}
         />
+      </SlideOver>
+
+      <SlideOver
+        isOpen={isBerthAssignmentOpen && selectedVesselCall !== null}
+        title="Assign berth"
+        description="Resolve berth allocation for the selected vessel call without leaving the operational workspace."
+        onClose={closeBerthAssignmentPanel}
+      >
+        {selectedVesselCall ? (
+          <BerthAssignmentForm
+            vesselCall={selectedVesselCall}
+            berths={berths}
+            berthName={
+              selectedVesselCall.berthId
+                ? (berthNames.get(selectedVesselCall.berthId) ?? selectedVesselCall.berthId)
+                : 'Not assigned'
+            }
+            vesselName={vesselNames.get(selectedVesselCall.vesselId) ?? selectedVesselCall.vesselId}
+            portName={portNames.get(selectedVesselCall.portId) ?? selectedVesselCall.portId}
+            isSubmitting={isSubmitting}
+            onSubmit={assignBerth}
+            onCancel={closeBerthAssignmentPanel}
+          />
+        ) : null}
       </SlideOver>
 
       <SlideOver
@@ -801,6 +854,87 @@ export function VesselCallsPage({ initialId = '', initialSearch = '' }: VesselCa
   );
 }
 
+function BerthAssignmentForm({
+  vesselCall,
+  berths,
+  berthName,
+  vesselName,
+  portName,
+  isSubmitting,
+  onSubmit,
+  onCancel,
+}: Readonly<{
+  vesselCall: VesselCallRecord;
+  berths: readonly BerthRecord[];
+  berthName: string;
+  vesselName: string;
+  portName: string;
+  isSubmitting: boolean;
+  onSubmit: (vesselCall: VesselCallRecord, berthId: string | null) => Promise<void>;
+  onCancel: () => void;
+}>) {
+  const [berthId, setBerthId] = useState(vesselCall.berthId ?? '');
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await onSubmit(vesselCall, berthId || null);
+  }
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className="grid gap-5 rounded-lg border border-line bg-panel p-5 shadow-panel"
+    >
+      <div className="grid gap-3 rounded-md border border-line bg-surface p-4 text-sm">
+        <SummaryLine label="Call" value={vesselCall.callReference} />
+        <SummaryLine label="Vessel" value={vesselName} />
+        <SummaryLine label="Port" value={portName} />
+        <SummaryLine label="Current berth" value={berthName} />
+        <SummaryLine label="ETA" value={formatDateTime(vesselCall.eta)} />
+        <SummaryLine label="ETD" value={formatDateTime(vesselCall.etd)} />
+      </div>
+
+      <label className="grid gap-1 text-sm font-medium text-ink">
+        Berth allocation
+        <select
+          value={berthId}
+          onChange={(event) => setBerthId(event.target.value)}
+          className="rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-harbor"
+        >
+          <option value="">Unassigned</option>
+          {berths.map((berth) => (
+            <option key={berth.id} value={berth.id}>
+              {berth.name} · {berth.code}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <p className="text-sm leading-6 text-steel">
+        Saving this allocation updates the vessel call and writes through the existing audit trail.
+        Terminal-level filtering will become richer when terminal master data is introduced.
+      </p>
+
+      <div className="flex flex-wrap justify-end gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-md border border-line px-4 py-2 text-sm font-semibold text-steel"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="rounded-md bg-harbor px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isSubmitting ? 'Saving...' : 'Save berth assignment'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
 function OperationalChain({
   vesselCall,
   movements,
@@ -812,6 +946,7 @@ function OperationalChain({
   portName,
   isLoading,
   onAddMovement,
+  onAssignBerth,
   onEditVesselCall,
   onAttachService,
   onEditService,
@@ -830,6 +965,7 @@ function OperationalChain({
   portName: string;
   isLoading: boolean;
   onAddMovement: () => void;
+  onAssignBerth: () => void;
   onEditVesselCall: (vesselCall: VesselCallRecord) => void;
   onAttachService: (movement: MovementRecord) => void;
   onEditService: (movementService: MovementServiceRecord) => void;
@@ -906,6 +1042,13 @@ function OperationalChain({
               className="rounded-md bg-harbor px-3 py-1.5 text-sm font-semibold text-white"
             >
               Add movement
+            </button>
+            <button
+              type="button"
+              onClick={onAssignBerth}
+              className="rounded-md border border-line px-3 py-1.5 text-sm font-semibold text-steel"
+            >
+              {vesselCall.berthId ? 'Change berth' : 'Assign berth'}
             </button>
             <button
               type="button"
@@ -1130,6 +1273,15 @@ function OperationalSummaryItem({ label, value }: Readonly<{ label: string; valu
     <div>
       <p className="text-xs font-semibold uppercase tracking-wide text-steel">{label}</p>
       <div className="mt-1 text-sm font-semibold text-ink">{value}</div>
+    </div>
+  );
+}
+
+function SummaryLine({ label, value }: Readonly<{ label: string; value: ReactNode }>) {
+  return (
+    <div className="grid gap-1 sm:grid-cols-[8rem_1fr]">
+      <span className="font-semibold text-steel">{label}</span>
+      <span className="font-medium text-ink">{value}</span>
     </div>
   );
 }

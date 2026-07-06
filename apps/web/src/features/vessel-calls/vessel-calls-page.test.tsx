@@ -7,6 +7,7 @@ const tenantId = '11111111-1111-4111-8111-111111111111';
 const vesselId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const portId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const vesselCallId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const berthId = '11111111-2222-4333-8444-555555555555';
 const movementId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
 const serviceId = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
 const organizationId = '99999999-9999-4999-8999-999999999999';
@@ -68,7 +69,7 @@ describe('VesselCallsPage', () => {
         return Response.json({
           data: [
             {
-              id: '11111111-2222-4333-8444-555555555555',
+              id: berthId,
               tenantId,
               terminalId: '66666666-6666-4666-8666-666666666666',
               code: 'TRINITY-1',
@@ -225,6 +226,30 @@ describe('VesselCallsPage', () => {
       }
 
       if (url.includes(`/api/v1/vessel-calls/${vesselCallId}`)) {
+        if (init?.method === 'PATCH') {
+          const patch = JSON.parse(String(init.body ?? '{}')) as { berthId?: string | null };
+
+          return Response.json({
+            id: vesselCallId,
+            tenantId,
+            callReference: 'CALL-2026-0001',
+            vesselId,
+            portId,
+            berthId: patch.berthId ?? null,
+            agentId: null,
+            operatorId: null,
+            voyageNumber: 'VOY-7781',
+            status: patch.berthId ? 'expected' : 'arrived',
+            eta: '2026-07-01T10:00:00.000Z',
+            etd: '2026-07-02T18:00:00.000Z',
+            ata: null,
+            atd: null,
+            remarks: null,
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-02T00:00:00.000Z',
+          });
+        }
+
         return Response.json({
           id: vesselCallId,
           tenantId,
@@ -321,6 +346,38 @@ describe('VesselCallsPage', () => {
     expect(screen.getByText('1 movements · 1 services')).toBeInTheDocument();
     expect(await screen.findByText('Vessel call update')).toBeInTheDocument();
     expect(screen.getByText('Status changed from expected to arrived')).toBeInTheDocument();
+  });
+
+  it('assigns a berth from the vessel call workspace', async () => {
+    const fetchMock = mockVesselCallApis();
+
+    render(<VesselCallsPage />);
+
+    await screen.findByText('CALL-2026-0001');
+
+    fireEvent.click(screen.getByRole('row', { name: /CALL-2026-0001/ }));
+
+    await waitFor(() => expect(screen.getAllByText('Assign a berth').length).toBeGreaterThan(0));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Assign berth' }));
+
+    expect(screen.getByRole('heading', { name: 'Assign berth' })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Berth allocation' }), {
+      target: { value: berthId },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save berth assignment' }));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining(`/api/v1/vessel-calls/${vesselCallId}`),
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({ berthId }),
+        }),
+      ),
+    );
+    expect(await screen.findByText('Trinity Berth 1 (TRINITY-1)')).toBeInTheDocument();
   });
 
   it('loads vessel calls using the initial search value', async () => {
