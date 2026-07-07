@@ -149,6 +149,61 @@ describe('VesselCallsPage', () => {
         });
       }
 
+      if (url.includes('/api/v1/booking-requests/33333333-3333-4333-8333-333333333333/requested-services')) {
+        return Response.json([
+          {
+            id: '44444444-4444-4444-8444-444444444444',
+            tenantId,
+            bookingRequestId: '33333333-3333-4333-8333-333333333333',
+            serviceId,
+            serviceCode: 'PILOTAGE',
+            serviceName: 'Harbour Pilotage',
+            serviceCategory: 'pilotage',
+            providerOrganizationId: null,
+            serviceReceiverOrganizationId: null,
+            billToOrganizationId: null,
+            payerOrganizationId: null,
+            status: 'requested',
+            quantity: '1',
+            unitOfMeasure: 'job',
+            requestedAt: '2026-07-01T10:00:00.000Z',
+            isBillable: true,
+            notes: 'Requested during booking intake.',
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-02T00:00:00.000Z',
+          },
+        ]);
+      }
+
+      if (url.includes('/api/v1/booking-requests')) {
+        return Response.json({
+          data: [
+            {
+              id: '33333333-3333-4333-8333-333333333333',
+              tenantId,
+              requestReference: 'BR-2026-0001',
+              vesselId,
+              portId,
+              preferredBerthId: null,
+              agentOrganizationId: null,
+              customerOrganizationId: null,
+              vesselCallId,
+              status: 'confirmed',
+              requestedEta: '2026-07-01T10:00:00.000Z',
+              requestedEtd: '2026-07-02T18:00:00.000Z',
+              voyageNumber: 'VOY-7781',
+              cargoSummary: null,
+              remarks: null,
+              createdAt: '2026-01-01T00:00:00.000Z',
+              updatedAt: '2026-01-02T00:00:00.000Z',
+              submittedAt: '2026-01-01T00:00:00.000Z',
+              reviewedAt: '2026-01-02T00:00:00.000Z',
+            },
+          ],
+          meta: { page: 1, pageSize: 1, totalItems: 1, totalPages: 1 },
+        });
+      }
+
       if (url.includes('/api/v1/movement-services')) {
         if (init?.method === 'DELETE') {
           serviceDeleted = true;
@@ -344,6 +399,9 @@ describe('VesselCallsPage', () => {
     expect(screen.getByText('Assign a berth')).toBeInTheDocument();
     expect(screen.getByText('Billing readiness')).toBeInTheDocument();
     expect(screen.getByText('1 movements · 1 services')).toBeInTheDocument();
+    expect(screen.getByText('Requested service demand')).toBeInTheDocument();
+    expect(screen.getByText('Confirmed from BR-2026-0001')).toBeInTheDocument();
+    expect(screen.getByText('Requested during booking intake.')).toBeInTheDocument();
     expect(await screen.findByText('Vessel call update')).toBeInTheDocument();
     expect(screen.getByText('Status changed from expected to arrived')).toBeInTheDocument();
   });

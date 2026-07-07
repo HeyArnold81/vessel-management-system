@@ -9,20 +9,29 @@ import type { BookingRequest } from '@prisma/client';
 
 import type {
   BookingRequestListQuery,
+  BookingRequestedServiceRecord,
   BookingRequestRecord,
   BookingRequestStatus,
+  CreateBookingRequestedServiceInput,
+  CreateVesselCallInput,
   CreateBookingRequestInput,
   PaginatedResponse,
   UpdateBookingRequestInput,
+  VesselCallRecord,
 } from '@vms/shared';
 
 import { normalizePage, normalizePageSize } from '../../shared/pagination.js';
 
+import { BookingRequestsAuditService } from './audit.service.js';
+import { toBookingRequestedServiceRecord } from './booking-requested-service.mapper.js';
 import { toBookingRequestRecord } from './booking-request.mapper.js';
 import {
   BOOKING_REQUESTS_REPOSITORY,
   type BookingRequestsRepository,
 } from './booking-requests.repository.js';
+import { toVesselCallRecord } from '../vessel-calls/vessel-call.mapper.js';
+
+type BookingRequestAuditRecorder = Pick<BookingRequestsAuditService, 'record'>;
 
 const defaultQuery = {
   page: 1,
@@ -37,6 +46,8 @@ export class BookingRequestsService {
   constructor(
     @Inject(BOOKING_REQUESTS_REPOSITORY)
     private readonly repository: BookingRequestsRepository,
+    @Inject(BookingRequestsAuditService)
+    private readonly auditService: BookingRequestAuditRecorder,
   ) {}
 
   async list(
@@ -111,13 +122,151 @@ export class BookingRequestsService {
     }
 
     const updated = await this.repository.updateStatus(tenantId, id, status);
-    return toBookingRequestRecord(updated);
+    const beforeRecord = toBookingRequestRecord(existing);
+    const afterRecord = toBookingRequestRecord(updated);
+
+    await this.auditService.record({
+      tenantId,
+      action: `booking_request.${status}`,
+      entityId: id,
+      beforeData: beforeRecord,
+      afterData: afterRecord,
+    });
+
+    return afterRecord;
+  }
+
+  async confirm(
+    tenantId: string,
+    id: string,
+  ): Promise<{ bookingRequest: BookingRequestRecord; vesselCall: VesselCallRecord }> {
+    const existing = await this.getExisting(tenantId, id);
+
+    if (existing.status !== 'approved') {
+      throw new BadRequestException('Only approved booking requests can be confirmed.');
+    }
+
+    if (existing.vesselCallId) {
+      throw new ConflictException('This booking request is already linked to a vessel call.');
+    }
+
+    const vesselCallInput = this.toVesselCallInput(existing);
+    const existingVesselCall = await this.repository.findVesselCallByCallReference(
+      tenantId,
+      vesselCallInput.callReference,
+    );
+
+    if (existingVesselCall) {
+      throw new ConflictException('A vessel call with this booking reference already exists.');
+    }
+
+    const result = await this.repository.confirm(tenantId, id, vesselCallInput);
+    const beforeRecord = toBookingRequestRecord(existing);
+    const afterRecord = toBookingRequestRecord(result.bookingRequest);
+    const vesselCallRecord = toVesselCallRecord(result.vesselCall);
+
+    await this.auditService.record({
+      tenantId,
+      action: 'booking_request.confirm',
+      entityId: id,
+      beforeData: beforeRecord,
+      afterData: afterRecord,
+      metadata: { vesselCallId: result.vesselCall.id },
+    });
+
+    await this.auditService.record({
+      tenantId,
+      action: 'vessel_call.create_from_booking_request',
+      entityType: 'vessel_call',
+      entityId: result.vesselCall.id,
+      afterData: vesselCallRecord,
+      metadata: { bookingRequestId: id },
+    });
+
+    return {
+      bookingRequest: afterRecord,
+      vesselCall: vesselCallRecord,
+    };
   }
 
   async remove(tenantId: string, id: string): Promise<BookingRequestRecord> {
     await this.getExisting(tenantId, id);
     const deleted = await this.repository.softDelete(tenantId, id);
     return toBookingRequestRecord(deleted);
+  }
+
+  async listRequestedServices(
+    tenantId: string,
+    id: string,
+  ): Promise<readonly BookingRequestedServiceRecord[]> {
+    await this.getExisting(tenantId, id);
+
+    const requestedServices = await this.repository.findRequestedServices(tenantId, id);
+    return requestedServices.map(toBookingRequestedServiceRecord);
+  }
+
+  async createRequestedService(
+    tenantId: string,
+    id: string,
+    input: CreateBookingRequestedServiceInput,
+  ): Promise<BookingRequestedServiceRecord> {
+    const bookingRequest = await this.getExisting(tenantId, id);
+    this.assertServicesEditable(bookingRequest);
+
+    const service = await this.repository.findServiceById(tenantId, input.serviceId);
+
+    if (!service || service.status !== 'active') {
+      throw new BadRequestException('Requested service must reference an active service catalog item.');
+    }
+
+    const requestedService = await this.repository.createRequestedService(tenantId, id, {
+      ...input,
+      unitOfMeasure: input.unitOfMeasure.trim() || service.defaultUnit,
+      isBillable: input.isBillable ?? service.isBillable,
+    });
+    const record = toBookingRequestedServiceRecord(requestedService);
+
+    await this.auditService.record({
+      tenantId,
+      action: 'booking_request.service_request.create',
+      entityId: id,
+      afterData: record,
+      metadata: { requestedServiceId: requestedService.id, serviceId: requestedService.serviceId },
+    });
+
+    return record;
+  }
+
+  async deleteRequestedService(
+    tenantId: string,
+    id: string,
+    requestedServiceId: string,
+  ): Promise<BookingRequestedServiceRecord> {
+    const bookingRequest = await this.getExisting(tenantId, id);
+    this.assertServicesEditable(bookingRequest);
+
+    const existing = await this.repository.findRequestedServiceById(
+      tenantId,
+      id,
+      requestedServiceId,
+    );
+
+    if (!existing) {
+      throw new NotFoundException('Requested service was not found.');
+    }
+
+    const deleted = await this.repository.deleteRequestedService(tenantId, id, requestedServiceId);
+    const record = toBookingRequestedServiceRecord(deleted);
+
+    await this.auditService.record({
+      tenantId,
+      action: 'booking_request.service_request.delete',
+      entityId: id,
+      beforeData: record,
+      metadata: { requestedServiceId, serviceId: record.serviceId },
+    });
+
+    return record;
   }
 
   private async getExisting(tenantId: string, id: string): Promise<BookingRequest> {
@@ -157,6 +306,21 @@ export class BookingRequestsService {
     }
   }
 
+  private assertServicesEditable(bookingRequest: BookingRequest): void {
+    const editableStatuses: readonly BookingRequestStatus[] = [
+      'draft',
+      'submitted',
+      'under_review',
+      'availability_checked',
+    ];
+
+    if (!editableStatuses.includes(bookingRequest.status as BookingRequestStatus)) {
+      throw new BadRequestException(
+        'Requested services can only be changed before the booking request is approved.',
+      );
+    }
+  }
+
   private resolveDate(
     nextValue: string | null | undefined,
     existingValue?: Date | null,
@@ -174,12 +338,38 @@ export class BookingRequestsService {
       submitted: ['under_review', 'cancelled'],
       under_review: ['availability_checked', 'approved', 'rejected', 'cancelled'],
       availability_checked: ['approved', 'rejected', 'cancelled'],
-      approved: ['confirmed', 'rejected', 'cancelled'],
+      approved: ['rejected', 'cancelled'],
       rejected: [],
       confirmed: [],
       cancelled: [],
     };
 
     return allowed[current]?.includes(next) ?? false;
+  }
+
+  private toVesselCallInput(bookingRequest: BookingRequest): CreateVesselCallInput {
+    return {
+      callReference: bookingRequest.requestReference,
+      vesselId: bookingRequest.vesselId,
+      portId: bookingRequest.portId,
+      berthId: bookingRequest.preferredBerthId,
+      agentId: bookingRequest.agentOrganizationId,
+      operatorId: null,
+      voyageNumber: bookingRequest.voyageNumber,
+      status: 'planned',
+      eta: bookingRequest.requestedEta?.toISOString() ?? null,
+      etd: bookingRequest.requestedEtd?.toISOString() ?? null,
+      remarks: this.buildConfirmedVesselCallRemarks(bookingRequest),
+    };
+  }
+
+  private buildConfirmedVesselCallRemarks(bookingRequest: BookingRequest): string | null {
+    const remarks = [
+      `Confirmed from booking request ${bookingRequest.requestReference}.`,
+      bookingRequest.cargoSummary ? `Cargo: ${bookingRequest.cargoSummary}` : '',
+      bookingRequest.remarks ?? '',
+    ].filter(Boolean);
+
+    return remarks.length > 0 ? remarks.join('\n') : null;
   }
 }

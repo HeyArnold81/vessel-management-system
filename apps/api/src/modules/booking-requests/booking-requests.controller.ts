@@ -20,11 +20,18 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 
-import type { BookingRequestRecord, PaginatedResponse } from '@vms/shared';
+import type {
+  BookingRequestedServiceRecord,
+  BookingRequestRecord,
+  PaginatedResponse,
+  VesselCallRecord,
+} from '@vms/shared';
 
 import {
   BookingRequestIdParamDto,
+  BookingRequestedServiceIdParamDto,
   CreateBookingRequestDto,
+  CreateBookingRequestedServiceDto,
   ListBookingRequestsQueryDto,
   UpdateBookingRequestDto,
 } from './dto/booking-request.dto.js';
@@ -151,6 +158,16 @@ export class BookingRequestsController {
     );
   }
 
+  @Post(':id/confirm')
+  @ApiOperation({ summary: 'Confirm an approved booking request into an operational vessel call.' })
+  @ApiOkResponse({ description: 'Booking request confirmed and linked to a vessel call.' })
+  confirm(
+    @Headers('x-tenant-id') tenantHeader: string | undefined,
+    @Param() params: BookingRequestIdParamDto,
+  ): Promise<{ bookingRequest: BookingRequestRecord; vesselCall: VesselCallRecord }> {
+    return this.bookingRequestsService.confirm(requireTenantId(tenantHeader), params.id);
+  }
+
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Cancel a booking request.' })
@@ -160,5 +177,48 @@ export class BookingRequestsController {
     @Param() params: BookingRequestIdParamDto,
   ): Promise<BookingRequestRecord> {
     return this.bookingRequestsService.remove(requireTenantId(tenantHeader), params.id);
+  }
+
+  @Get(':id/requested-services')
+  @ApiOperation({ summary: 'List service requests attached to a booking request.' })
+  @ApiOkResponse({ description: 'Booking requested services found.' })
+  listRequestedServices(
+    @Headers('x-tenant-id') tenantHeader: string | undefined,
+    @Param() params: BookingRequestIdParamDto,
+  ): Promise<readonly BookingRequestedServiceRecord[]> {
+    return this.bookingRequestsService.listRequestedServices(
+      requireTenantId(tenantHeader),
+      params.id,
+    );
+  }
+
+  @Post(':id/requested-services')
+  @ApiOperation({ summary: 'Attach a requested service to a booking request before approval.' })
+  @ApiCreatedResponse({ description: 'Booking requested service created.' })
+  createRequestedService(
+    @Headers('x-tenant-id') tenantHeader: string | undefined,
+    @Param() params: BookingRequestIdParamDto,
+    @Body() body: CreateBookingRequestedServiceDto,
+  ): Promise<BookingRequestedServiceRecord> {
+    return this.bookingRequestsService.createRequestedService(
+      requireTenantId(tenantHeader),
+      params.id,
+      body,
+    );
+  }
+
+  @Delete(':id/requested-services/:requestedServiceId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Remove a requested service from a booking request before approval.' })
+  @ApiOkResponse({ description: 'Booking requested service removed.' })
+  deleteRequestedService(
+    @Headers('x-tenant-id') tenantHeader: string | undefined,
+    @Param() params: BookingRequestedServiceIdParamDto,
+  ): Promise<BookingRequestedServiceRecord> {
+    return this.bookingRequestsService.deleteRequestedService(
+      requireTenantId(tenantHeader),
+      params.id,
+      params.requestedServiceId,
+    );
   }
 }

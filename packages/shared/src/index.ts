@@ -351,6 +351,35 @@ export type BookingRequestRecord = {
   readonly reviewedAt: string | null;
 };
 
+export type BookingRequestedServiceStatus =
+  | 'requested'
+  | 'reviewing'
+  | 'accepted'
+  | 'rejected'
+  | 'cancelled';
+
+export type BookingRequestedServiceRecord = {
+  readonly id: string;
+  readonly tenantId: string;
+  readonly bookingRequestId: string;
+  readonly serviceId: string;
+  readonly serviceCode: string;
+  readonly serviceName: string;
+  readonly serviceCategory: ServiceCategory;
+  readonly providerOrganizationId: string | null;
+  readonly serviceReceiverOrganizationId: string | null;
+  readonly billToOrganizationId: string | null;
+  readonly payerOrganizationId: string | null;
+  readonly status: BookingRequestedServiceStatus;
+  readonly quantity: string;
+  readonly unitOfMeasure: string;
+  readonly requestedAt: string | null;
+  readonly isBillable: boolean;
+  readonly notes: string | null;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+};
+
 export type BookingRequestListQuery = {
   readonly page?: number;
   readonly pageSize?: number;
@@ -359,6 +388,7 @@ export type BookingRequestListQuery = {
   readonly vesselId?: string;
   readonly portId?: string;
   readonly preferredBerthId?: string;
+  readonly vesselCallId?: string;
   readonly sortBy?: BookingRequestSortField;
   readonly sortDirection?: SortDirection;
 };
@@ -379,6 +409,19 @@ export type CreateBookingRequestInput = {
 
 export type UpdateBookingRequestInput = Partial<CreateBookingRequestInput> & {
   readonly status?: BookingRequestStatus;
+};
+
+export type CreateBookingRequestedServiceInput = {
+  readonly serviceId: string;
+  readonly providerOrganizationId?: string | null;
+  readonly serviceReceiverOrganizationId?: string | null;
+  readonly billToOrganizationId?: string | null;
+  readonly payerOrganizationId?: string | null;
+  readonly quantity: number;
+  readonly unitOfMeasure: string;
+  readonly requestedAt?: string | null;
+  readonly isBillable?: boolean;
+  readonly notes?: string | null;
 };
 
 export type AvailabilityRuleResult = {

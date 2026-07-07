@@ -1,19 +1,27 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { BookingRequest, Prisma } from '@prisma/client';
+import type { BookingRequest, Prisma, ServiceCatalog, VesselCall } from '@prisma/client';
 
 import type {
+  CreateBookingRequestedServiceInput,
   BookingRequestSortField,
   BookingRequestStatus,
   CreateBookingRequestInput,
+  CreateVesselCallInput,
   SortDirection,
   UpdateBookingRequestInput,
 } from '@vms/shared';
 
 import { PrismaService } from '../../database/prisma.service.js';
+import type { BookingRequestedServiceWithCatalog } from './booking-requested-service.mapper.js';
 
 export type BookingRequestPageResult = {
   readonly bookingRequests: readonly BookingRequest[];
   readonly totalItems: number;
+};
+
+export type ConfirmBookingRequestResult = {
+  readonly bookingRequest: BookingRequest;
+  readonly vesselCall: VesselCall;
 };
 
 export type NormalizedBookingRequestListQuery = {
@@ -24,6 +32,7 @@ export type NormalizedBookingRequestListQuery = {
   readonly vesselId?: string;
   readonly portId?: string;
   readonly preferredBerthId?: string;
+  readonly vesselCallId?: string;
   readonly sortBy: BookingRequestSortField;
   readonly sortDirection: SortDirection;
 };
@@ -38,9 +47,35 @@ export interface BookingRequestsRepository {
     tenantId: string,
     requestReference: string,
   ): Promise<BookingRequest | null>;
+  findVesselCallByCallReference(tenantId: string, callReference: string): Promise<VesselCall | null>;
+  findServiceById(tenantId: string, serviceId: string): Promise<ServiceCatalog | null>;
   create(tenantId: string, input: CreateBookingRequestInput): Promise<BookingRequest>;
   update(tenantId: string, id: string, input: UpdateBookingRequestInput): Promise<BookingRequest>;
   updateStatus(tenantId: string, id: string, status: BookingRequestStatus): Promise<BookingRequest>;
+  confirm(
+    tenantId: string,
+    id: string,
+    vesselCallInput: CreateVesselCallInput,
+  ): Promise<ConfirmBookingRequestResult>;
+  findRequestedServices(
+    tenantId: string,
+    bookingRequestId: string,
+  ): Promise<readonly BookingRequestedServiceWithCatalog[]>;
+  findRequestedServiceById(
+    tenantId: string,
+    bookingRequestId: string,
+    requestedServiceId: string,
+  ): Promise<BookingRequestedServiceWithCatalog | null>;
+  createRequestedService(
+    tenantId: string,
+    bookingRequestId: string,
+    input: CreateBookingRequestedServiceInput,
+  ): Promise<BookingRequestedServiceWithCatalog>;
+  deleteRequestedService(
+    tenantId: string,
+    bookingRequestId: string,
+    requestedServiceId: string,
+  ): Promise<BookingRequestedServiceWithCatalog>;
   softDelete(tenantId: string, id: string): Promise<BookingRequest>;
 }
 
@@ -82,6 +117,18 @@ export class PrismaBookingRequestsRepository implements BookingRequestsRepositor
   ): Promise<BookingRequest | null> {
     return this.prisma.bookingRequest.findFirst({
       where: { tenantId, requestReference, deletedAt: null },
+    });
+  }
+
+  findVesselCallByCallReference(tenantId: string, callReference: string): Promise<VesselCall | null> {
+    return this.prisma.vesselCall.findFirst({
+      where: { tenantId, callReference, deletedAt: null },
+    });
+  }
+
+  findServiceById(tenantId: string, serviceId: string): Promise<ServiceCatalog | null> {
+    return this.prisma.serviceCatalog.findFirst({
+      where: { id: serviceId, tenantId, deletedAt: null },
     });
   }
 
@@ -157,6 +204,108 @@ export class PrismaBookingRequestsRepository implements BookingRequestsRepositor
     });
   }
 
+  async confirm(
+    tenantId: string,
+    id: string,
+    vesselCallInput: CreateVesselCallInput,
+  ): Promise<ConfirmBookingRequestResult> {
+    return this.prisma.$transaction(async (transaction) => {
+      const vesselCall = await transaction.vesselCall.create({
+        data: {
+          tenantId,
+          callReference: vesselCallInput.callReference.trim().toUpperCase(),
+          vesselId: vesselCallInput.vesselId,
+          portId: vesselCallInput.portId,
+          berthId: vesselCallInput.berthId?.trim() || null,
+          agentId: vesselCallInput.agentId?.trim() || null,
+          operatorId: vesselCallInput.operatorId?.trim() || null,
+          voyageNumber: vesselCallInput.voyageNumber?.trim() || null,
+          status: vesselCallInput.status ?? 'planned',
+          eta: this.toDate(vesselCallInput.eta),
+          etd: this.toDate(vesselCallInput.etd),
+          ata: this.toDate(vesselCallInput.ata),
+          atd: this.toDate(vesselCallInput.atd),
+          remarks: vesselCallInput.remarks?.trim() || null,
+        },
+      });
+
+      const bookingRequest = await transaction.bookingRequest.update({
+        where: { id, tenantId },
+        data: {
+          status: 'confirmed',
+          vesselCallId: vesselCall.id,
+          reviewedAt: new Date(),
+        },
+      });
+
+      return { bookingRequest, vesselCall };
+    });
+  }
+
+  findRequestedServices(
+    tenantId: string,
+    bookingRequestId: string,
+  ): Promise<readonly BookingRequestedServiceWithCatalog[]> {
+    return this.prisma.bookingRequestedService.findMany({
+      where: { tenantId, bookingRequestId },
+      include: { service: true },
+      orderBy: [{ requestedAt: 'asc' }, { createdAt: 'asc' }],
+    });
+  }
+
+  findRequestedServiceById(
+    tenantId: string,
+    bookingRequestId: string,
+    requestedServiceId: string,
+  ): Promise<BookingRequestedServiceWithCatalog | null> {
+    return this.prisma.bookingRequestedService.findFirst({
+      where: { id: requestedServiceId, tenantId, bookingRequestId },
+      include: { service: true },
+    });
+  }
+
+  createRequestedService(
+    tenantId: string,
+    bookingRequestId: string,
+    input: CreateBookingRequestedServiceInput,
+  ): Promise<BookingRequestedServiceWithCatalog> {
+    return this.prisma.bookingRequestedService.create({
+      data: {
+        tenantId,
+        bookingRequestId,
+        serviceId: input.serviceId,
+        providerOrganizationId: input.providerOrganizationId?.trim() || null,
+        serviceReceiverOrganizationId: input.serviceReceiverOrganizationId?.trim() || null,
+        billToOrganizationId: input.billToOrganizationId?.trim() || null,
+        payerOrganizationId: input.payerOrganizationId?.trim() || null,
+        quantity: input.quantity,
+        unitOfMeasure: input.unitOfMeasure.trim().toLowerCase(),
+        requestedAt: this.toDate(input.requestedAt),
+        isBillable: input.isBillable ?? true,
+        notes: input.notes?.trim() || null,
+      },
+      include: { service: true },
+    });
+  }
+
+  async deleteRequestedService(
+    tenantId: string,
+    bookingRequestId: string,
+    requestedServiceId: string,
+  ): Promise<BookingRequestedServiceWithCatalog> {
+    const existing = await this.findRequestedServiceById(
+      tenantId,
+      bookingRequestId,
+      requestedServiceId,
+    );
+
+    await this.prisma.bookingRequestedService.delete({
+      where: { id: requestedServiceId },
+    });
+
+    return existing as BookingRequestedServiceWithCatalog;
+  }
+
   softDelete(tenantId: string, id: string): Promise<BookingRequest> {
     return this.prisma.bookingRequest.update({
       where: { id, tenantId },
@@ -178,6 +327,7 @@ export class PrismaBookingRequestsRepository implements BookingRequestsRepositor
       ...(query.vesselId ? { vesselId: query.vesselId } : {}),
       ...(query.portId ? { portId: query.portId } : {}),
       ...(query.preferredBerthId ? { preferredBerthId: query.preferredBerthId } : {}),
+      ...(query.vesselCallId ? { vesselCallId: query.vesselCallId } : {}),
       ...(query.search
         ? {
             OR: [

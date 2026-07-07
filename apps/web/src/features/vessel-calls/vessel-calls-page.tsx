@@ -8,6 +8,8 @@ import type {
   CreateMovementServiceInput,
   CreateVesselCallInput,
   BerthRecord,
+  BookingRequestedServiceRecord,
+  BookingRequestRecord,
   MovementRecord,
   MovementServiceRecord,
   MovementServiceStatus,
@@ -29,6 +31,10 @@ import { SlideOver } from '@/components/ui/slide-over';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { AuditLogPanel } from '@/features/audit/audit-log-panel';
 import { listBerths } from '@/features/berths/api';
+import {
+  listBookingRequestedServices,
+  listBookingRequests,
+} from '@/features/booking-requests/api';
 import {
   createMovementService,
   deleteMovementService,
@@ -84,6 +90,12 @@ export function VesselCallsPage({ initialId = '', initialSearch = '' }: VesselCa
   const [linkedMovements, setLinkedMovements] = useState<readonly MovementRecord[]>([]);
   const [linkedMovementServices, setLinkedMovementServices] = useState<
     readonly MovementServiceRecord[]
+  >([]);
+  const [linkedBookingRequest, setLinkedBookingRequest] = useState<BookingRequestRecord | null>(
+    null,
+  );
+  const [linkedRequestedServices, setLinkedRequestedServices] = useState<
+    readonly BookingRequestedServiceRecord[]
   >([]);
   const [search, setSearch] = useState(initialSearch);
   const [status, setStatus] = useState<VesselCallStatus | ''>('');
@@ -404,17 +416,29 @@ export function VesselCallsPage({ initialId = '', initialSearch = '' }: VesselCa
     setSelectedVesselCall(vesselCall);
     setLinkedMovements([]);
     setLinkedMovementServices([]);
+    setLinkedBookingRequest(null);
+    setLinkedRequestedServices([]);
     setIsWorkflowLoading(true);
     setError(null);
 
     try {
-      const movementResult = await listMovements({
-        page: 1,
-        pageSize: 100,
-        vesselCallId: vesselCall.id,
-        sortBy: 'plannedAt',
-        sortDirection: 'asc',
-      });
+      const [movementResult, bookingRequestResult] = await Promise.all([
+        listMovements({
+          page: 1,
+          pageSize: 100,
+          vesselCallId: vesselCall.id,
+          sortBy: 'plannedAt',
+          sortDirection: 'asc',
+        }),
+        listBookingRequests({
+          page: 1,
+          pageSize: 1,
+          vesselCallId: vesselCall.id,
+          sortBy: 'createdAt',
+          sortDirection: 'desc',
+        }),
+      ]);
+      const bookingRequest = bookingRequestResult.data[0] ?? null;
       const movementServices = await Promise.all(
         movementResult.data.map((movement) =>
           listMovementServices({
@@ -426,9 +450,14 @@ export function VesselCallsPage({ initialId = '', initialSearch = '' }: VesselCa
           }),
         ),
       );
+      const requestedServices = bookingRequest
+        ? await listBookingRequestedServices(bookingRequest.id)
+        : [];
 
       setLinkedMovements(movementResult.data);
       setLinkedMovementServices(movementServices.flatMap((result) => result.data));
+      setLinkedBookingRequest(bookingRequest);
+      setLinkedRequestedServices(requestedServices);
     } catch (caught) {
       setError(
         caught instanceof ApiClientError ? caught.message : 'Unable to load operational chain.',
@@ -442,6 +471,8 @@ export function VesselCallsPage({ initialId = '', initialSearch = '' }: VesselCa
     setSelectedVesselCall(null);
     setLinkedMovements([]);
     setLinkedMovementServices([]);
+    setLinkedBookingRequest(null);
+    setLinkedRequestedServices([]);
   }
 
   function openCreatePanel() {
@@ -740,6 +771,8 @@ export function VesselCallsPage({ initialId = '', initialSearch = '' }: VesselCa
           vesselCall={selectedVesselCall}
           movements={linkedMovements}
           movementServices={linkedMovementServices}
+          bookingRequest={linkedBookingRequest}
+          requestedServices={linkedRequestedServices}
           serviceNames={serviceNames}
           organizationNames={organizationNames}
           berthName={
@@ -939,6 +972,8 @@ function OperationalChain({
   vesselCall,
   movements,
   movementServices,
+  bookingRequest,
+  requestedServices,
   serviceNames,
   organizationNames,
   berthName,
@@ -958,6 +993,8 @@ function OperationalChain({
   vesselCall: VesselCallRecord | null;
   movements: readonly MovementRecord[];
   movementServices: readonly MovementServiceRecord[];
+  bookingRequest: BookingRequestRecord | null;
+  requestedServices: readonly BookingRequestedServiceRecord[];
   serviceNames: ReadonlyMap<string, string>;
   organizationNames: ReadonlyMap<string, string>;
   berthName: string;
@@ -1024,6 +1061,11 @@ function OperationalChain({
             <p className="mt-2 text-sm text-steel">
               {vesselName} · {portName} · {berthName}
             </p>
+            {bookingRequest ? (
+              <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-steel">
+                Confirmed from {bookingRequest.requestReference}
+              </p>
+            ) : null}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -1095,6 +1137,60 @@ function OperationalChain({
 
       {isLoading ? (
         <p className="px-5 py-8 text-center text-sm text-steel">Loading operational chain...</p>
+      ) : null}
+
+      {!isLoading ? (
+        <div className="border-b border-line px-5 py-5">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-ink">Requested service demand</h3>
+              <p className="mt-1 text-sm text-steel">
+                Services captured at booking stage before assignment to an operational movement.
+              </p>
+            </div>
+            <span className="rounded-full border border-line bg-surface px-2.5 py-1 text-xs font-semibold text-steel">
+              {requestedServices.length} unassigned
+            </span>
+          </div>
+
+          {requestedServices.length === 0 ? (
+            <div className="mt-4 rounded-md border border-dashed border-line bg-surface px-4 py-5 text-sm text-steel">
+              No requested services were captured against the originating booking request.
+            </div>
+          ) : (
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {requestedServices.map((requestedService) => (
+                <article
+                  key={requestedService.id}
+                  className="rounded-md border border-line bg-surface p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-ink">{requestedService.serviceName}</p>
+                      <p className="mt-1 text-xs uppercase tracking-wide text-steel">
+                        {requestedService.serviceCode} · {requestedService.serviceCategory}
+                      </p>
+                    </div>
+                    <StatusBadge status={requestedService.status} />
+                  </div>
+                  <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                    <SummaryLine
+                      label="Quantity"
+                      value={`${requestedService.quantity} ${requestedService.unitOfMeasure}`}
+                    />
+                    <SummaryLine
+                      label="Billable"
+                      value={requestedService.isBillable ? 'Yes' : 'No'}
+                    />
+                  </dl>
+                  {requestedService.notes ? (
+                    <p className="mt-3 text-sm leading-6 text-steel">{requestedService.notes}</p>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+          )}
+        </div>
       ) : null}
 
       {!isLoading && movements.length === 0 ? (

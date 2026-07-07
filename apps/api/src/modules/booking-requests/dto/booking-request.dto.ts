@@ -4,10 +4,13 @@ import {
   IsIn,
   IsInt,
   IsISO8601,
+  IsBoolean,
   IsOptional,
+  IsNumber,
   IsString,
   Length,
   Matches,
+  Min as MinValue,
   Max,
   Min,
 } from 'class-validator';
@@ -100,6 +103,71 @@ export class BookingRequestIdParamDto {
   id!: string;
 }
 
+export class BookingRequestedServiceIdParamDto extends BookingRequestIdParamDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsString()
+  @Matches(uuidPattern, { message: 'Requested service id must be a valid UUID.' })
+  requestedServiceId!: string;
+}
+
+export class CreateBookingRequestedServiceDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsString()
+  @Matches(uuidPattern, { message: 'Service id must be a valid UUID.' })
+  serviceId!: string;
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsString()
+  @Matches(uuidPattern, { message: 'Provider organization id must be a valid UUID.' })
+  providerOrganizationId?: string | null;
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsString()
+  @Matches(uuidPattern, { message: 'Service receiver organization id must be a valid UUID.' })
+  serviceReceiverOrganizationId?: string | null;
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsString()
+  @Matches(uuidPattern, { message: 'Bill-to organization id must be a valid UUID.' })
+  billToOrganizationId?: string | null;
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsString()
+  @Matches(uuidPattern, { message: 'Payer organization id must be a valid UUID.' })
+  payerOrganizationId?: string | null;
+
+  @ApiProperty({ example: 1 })
+  @Type(() => Number)
+  @IsNumber()
+  @MinValue(0.001)
+  quantity!: number;
+
+  @ApiProperty({ example: 'each' })
+  @IsString()
+  @Length(1, 30)
+  unitOfMeasure!: string;
+
+  @ApiPropertyOptional({ example: '2026-07-01T10:00:00.000Z' })
+  @IsOptional()
+  @IsISO8601({ strict: true })
+  requestedAt?: string | null;
+
+  @ApiPropertyOptional({ example: true })
+  @IsOptional()
+  @IsBoolean()
+  isBillable?: boolean;
+
+  @ApiPropertyOptional({ example: 'Pilot required for inbound arrival.' })
+  @IsOptional()
+  @IsString()
+  @Length(1, 1000)
+  notes?: string | null;
+}
+
 export class ListBookingRequestsQueryDto {
   @ApiPropertyOptional({ example: 1 })
   @IsOptional()
@@ -144,6 +212,12 @@ export class ListBookingRequestsQueryDto {
   @IsString()
   @Matches(uuidPattern, { message: 'Preferred berth id must be a valid UUID.' })
   preferredBerthId?: string;
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsString()
+  @Matches(uuidPattern, { message: 'Vessel call id must be a valid UUID.' })
+  vesselCallId?: string;
 
   @ApiPropertyOptional({ example: 'requestedEta' })
   @IsOptional()
