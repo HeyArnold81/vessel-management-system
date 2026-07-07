@@ -3,7 +3,9 @@ import { Module } from '@nestjs/common';
 import { DatabaseModule } from './database/database.module.js';
 import { AiAssistantModule } from './modules/ai-assistant/ai-assistant.module.js';
 import { AuditLogsModule } from './modules/audit/audit.module.js';
+import { AvailabilityModule } from './modules/availability/availability.module.js';
 import { BerthsModule } from './modules/berths/berths.module.js';
+import { BookingRequestsModule } from './modules/booking-requests/booking-requests.module.js';
 import { BillingExportBatchesModule } from './modules/billing-export-batches/billing-export-batches.module.js';
 import { BillingEventsModule } from './modules/billing-events/billing-events.module.js';
 import { CargoModule } from './modules/cargo/cargo.module.js';
@@ -24,9 +26,11 @@ import { AppController } from './app.controller.js';
 @Module({
   imports: [
     DatabaseModule,
+    AvailabilityModule,
     VesselsModule,
     PortsModule,
     BerthsModule,
+    BookingRequestsModule,
     CargoModule,
     VesselCallsModule,
     MovementsModule,

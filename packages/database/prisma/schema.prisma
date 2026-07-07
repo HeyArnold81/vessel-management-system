@@ -16,8 +16,10 @@ model Tenant {
   organizations        Organization[]
   ports                Port[]
   vessels              Vessel[]
+  bookingRequests      BookingRequest[]
   vesselCalls          VesselCall[]
   movements            VesselMovement[]
+  availabilityChecks   AvailabilityCheck[]
   billingEvents        BillingEvent[]
   billingExportBatches BillingExportBatch[]
   auditLogs            AuditLog[]
@@ -148,6 +150,8 @@ model Organization {
   vesselParties            VesselParty[]
   agentVesselCalls         VesselCall[]      @relation("VesselCallAgent")
   operatorVesselCalls      VesselCall[]      @relation("VesselCallOperator")
+  agentBookingRequests     BookingRequest[]  @relation("BookingRequestAgent")
+  customerBookingRequests  BookingRequest[]  @relation("BookingRequestCustomer")
   providedMovementServices MovementService[] @relation("MovementServiceProvider")
   receivedMovementServices MovementService[] @relation("MovementServiceReceiver")
   billToMovementServices   MovementService[] @relation("MovementServiceBillTo")
@@ -162,21 +166,22 @@ model Organization {
 }
 
 model Port {
-  id          String           @id @default(uuid()) @db.Uuid
-  tenantId    String           @map("tenant_id") @db.Uuid
-  tenant      Tenant           @relation(fields: [tenantId], references: [id])
-  countryId   String           @map("country_id") @db.Uuid
-  country     Country          @relation(fields: [countryId], references: [id])
-  unlocode    String
-  name        String
-  timeZone    String           @map("time_zone")
-  status      String           @default("active")
-  terminals   Terminal[]
-  vesselCalls VesselCall[]
-  movements   VesselMovement[]
-  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
-  deletedAt   DateTime?        @map("deleted_at") @db.Timestamptz(6)
+  id              String           @id @default(uuid()) @db.Uuid
+  tenantId        String           @map("tenant_id") @db.Uuid
+  tenant          Tenant           @relation(fields: [tenantId], references: [id])
+  countryId       String           @map("country_id") @db.Uuid
+  country         Country          @relation(fields: [countryId], references: [id])
+  unlocode        String
+  name            String
+  timeZone        String           @map("time_zone")
+  status          String           @default("active")
+  terminals       Terminal[]
+  bookingRequests BookingRequest[]
+  vesselCalls     VesselCall[]
+  movements       VesselMovement[]
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt       DateTime?        @map("deleted_at") @db.Timestamptz(6)
 
   @@unique([tenantId, unlocode])
   @@index([tenantId, name])
@@ -203,22 +208,23 @@ model Terminal {
 }
 
 model Berth {
-  id            String              @id @default(uuid()) @db.Uuid
-  tenantId      String              @map("tenant_id") @db.Uuid
-  terminalId    String              @map("terminal_id") @db.Uuid
-  terminal      Terminal            @relation(fields: [terminalId], references: [id])
-  code          String
-  name          String
-  maxLengthM    Decimal?            @map("max_length_m") @db.Decimal(8, 2)
-  maxDraftM     Decimal?            @map("max_draft_m") @db.Decimal(6, 2)
-  status        String              @default("active")
-  berthStays    MovementBerthStay[]
-  vesselCalls   VesselCall[]
-  movementsFrom VesselMovement[]    @relation("MovementFromBerth")
-  movementsTo   VesselMovement[]    @relation("MovementToBerth")
-  createdAt     DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
-  deletedAt     DateTime?           @map("deleted_at") @db.Timestamptz(6)
+  id              String              @id @default(uuid()) @db.Uuid
+  tenantId        String              @map("tenant_id") @db.Uuid
+  terminalId      String              @map("terminal_id") @db.Uuid
+  terminal        Terminal            @relation(fields: [terminalId], references: [id])
+  code            String
+  name            String
+  maxLengthM      Decimal?            @map("max_length_m") @db.Decimal(8, 2)
+  maxDraftM       Decimal?            @map("max_draft_m") @db.Decimal(6, 2)
+  status          String              @default("active")
+  berthStays      MovementBerthStay[]
+  bookingRequests BookingRequest[]
+  vesselCalls     VesselCall[]
+  movementsFrom   VesselMovement[]    @relation("MovementFromBerth")
+  movementsTo     VesselMovement[]    @relation("MovementToBerth")
+  createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt       DateTime?           @map("deleted_at") @db.Timestamptz(6)
 
   @@unique([tenantId, terminalId, code])
   @@index([terminalId])
@@ -226,26 +232,27 @@ model Berth {
 }
 
 model Vessel {
-  id             String           @id @default(uuid()) @db.Uuid
-  tenantId       String           @map("tenant_id") @db.Uuid
-  tenant         Tenant           @relation(fields: [tenantId], references: [id])
-  flagCountryId  String?          @map("flag_country_id") @db.Uuid
-  flagCountry    Country?         @relation(fields: [flagCountryId], references: [id])
-  name           String
-  imoNumber      String           @map("imo_number")
-  mmsi           String?
-  callSign       String?          @map("call_sign")
-  vesselType     String           @map("vessel_type")
-  grossTonnage   Decimal?         @map("gross_tonnage") @db.Decimal(12, 2)
-  lengthOverallM Decimal?         @map("length_overall_m") @db.Decimal(8, 2)
-  maxDraftM      Decimal?         @map("max_draft_m") @db.Decimal(6, 2)
-  status         String           @default("active")
-  parties        VesselParty[]
-  vesselCalls    VesselCall[]
-  movements      VesselMovement[]
-  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
-  deletedAt      DateTime?        @map("deleted_at") @db.Timestamptz(6)
+  id              String           @id @default(uuid()) @db.Uuid
+  tenantId        String           @map("tenant_id") @db.Uuid
+  tenant          Tenant           @relation(fields: [tenantId], references: [id])
+  flagCountryId   String?          @map("flag_country_id") @db.Uuid
+  flagCountry     Country?         @relation(fields: [flagCountryId], references: [id])
+  name            String
+  imoNumber       String           @map("imo_number")
+  mmsi            String?
+  callSign        String?          @map("call_sign")
+  vesselType      String           @map("vessel_type")
+  grossTonnage    Decimal?         @map("gross_tonnage") @db.Decimal(12, 2)
+  lengthOverallM  Decimal?         @map("length_overall_m") @db.Decimal(8, 2)
+  maxDraftM       Decimal?         @map("max_draft_m") @db.Decimal(6, 2)
+  status          String           @default("active")
+  parties         VesselParty[]
+  bookingRequests BookingRequest[]
+  vesselCalls     VesselCall[]
+  movements       VesselMovement[]
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt       DateTime?        @map("deleted_at") @db.Timestamptz(6)
 
   @@unique([tenantId, imoNumber])
   @@index([tenantId, name])
@@ -270,31 +277,32 @@ model VesselParty {
 }
 
 model VesselCall {
-  id            String           @id @default(uuid()) @db.Uuid
-  tenantId      String           @map("tenant_id") @db.Uuid
-  tenant        Tenant           @relation(fields: [tenantId], references: [id])
-  callReference String           @map("call_reference")
-  vesselId      String           @map("vessel_id") @db.Uuid
-  vessel        Vessel           @relation(fields: [vesselId], references: [id])
-  portId        String           @map("port_id") @db.Uuid
-  port          Port             @relation(fields: [portId], references: [id])
-  berthId       String?          @map("berth_id") @db.Uuid
-  berth         Berth?           @relation(fields: [berthId], references: [id])
-  agentId       String?          @map("agent_id") @db.Uuid
-  agent         Organization?    @relation("VesselCallAgent", fields: [agentId], references: [id])
-  operatorId    String?          @map("operator_id") @db.Uuid
-  operator      Organization?    @relation("VesselCallOperator", fields: [operatorId], references: [id])
-  voyageNumber  String?          @map("voyage_number")
-  status        String           @default("planned")
-  eta           DateTime?        @db.Timestamptz(6)
-  etd           DateTime?        @db.Timestamptz(6)
-  ata           DateTime?        @db.Timestamptz(6)
-  atd           DateTime?        @db.Timestamptz(6)
-  remarks       String?
-  movements     VesselMovement[]
-  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
-  deletedAt     DateTime?        @map("deleted_at") @db.Timestamptz(6)
+  id             String           @id @default(uuid()) @db.Uuid
+  tenantId       String           @map("tenant_id") @db.Uuid
+  tenant         Tenant           @relation(fields: [tenantId], references: [id])
+  callReference  String           @map("call_reference")
+  vesselId       String           @map("vessel_id") @db.Uuid
+  vessel         Vessel           @relation(fields: [vesselId], references: [id])
+  portId         String           @map("port_id") @db.Uuid
+  port           Port             @relation(fields: [portId], references: [id])
+  berthId        String?          @map("berth_id") @db.Uuid
+  berth          Berth?           @relation(fields: [berthId], references: [id])
+  agentId        String?          @map("agent_id") @db.Uuid
+  agent          Organization?    @relation("VesselCallAgent", fields: [agentId], references: [id])
+  operatorId     String?          @map("operator_id") @db.Uuid
+  operator       Organization?    @relation("VesselCallOperator", fields: [operatorId], references: [id])
+  voyageNumber   String?          @map("voyage_number")
+  status         String           @default("planned")
+  eta            DateTime?        @db.Timestamptz(6)
+  etd            DateTime?        @db.Timestamptz(6)
+  ata            DateTime?        @db.Timestamptz(6)
+  atd            DateTime?        @db.Timestamptz(6)
+  remarks        String?
+  bookingRequest BookingRequest?
+  movements      VesselMovement[]
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?        @map("deleted_at") @db.Timestamptz(6)
 
   @@unique([tenantId, callReference])
   @@index([tenantId, status, eta])
@@ -302,6 +310,110 @@ model VesselCall {
   @@index([portId, eta])
   @@index([berthId, eta])
   @@map("vessel_calls")
+}
+
+model BookingRequest {
+  id                     String                    @id @default(uuid()) @db.Uuid
+  tenantId               String                    @map("tenant_id") @db.Uuid
+  tenant                 Tenant                    @relation(fields: [tenantId], references: [id])
+  requestReference       String                    @map("request_reference")
+  vesselId               String                    @map("vessel_id") @db.Uuid
+  vessel                 Vessel                    @relation(fields: [vesselId], references: [id])
+  portId                 String                    @map("port_id") @db.Uuid
+  port                   Port                      @relation(fields: [portId], references: [id])
+  preferredBerthId       String?                   @map("preferred_berth_id") @db.Uuid
+  preferredBerth         Berth?                    @relation(fields: [preferredBerthId], references: [id])
+  agentOrganizationId    String?                   @map("agent_organization_id") @db.Uuid
+  agentOrganization      Organization?             @relation("BookingRequestAgent", fields: [agentOrganizationId], references: [id])
+  customerOrganizationId String?                   @map("customer_organization_id") @db.Uuid
+  customerOrganization   Organization?             @relation("BookingRequestCustomer", fields: [customerOrganizationId], references: [id])
+  vesselCallId           String?                   @unique @map("vessel_call_id") @db.Uuid
+  vesselCall             VesselCall?               @relation(fields: [vesselCallId], references: [id])
+  status                 String                    @default("draft")
+  requestedEta           DateTime?                 @map("requested_eta") @db.Timestamptz(6)
+  requestedEtd           DateTime?                 @map("requested_etd") @db.Timestamptz(6)
+  voyageNumber           String?                   @map("voyage_number")
+  cargoSummary           String?                   @map("cargo_summary")
+  remarks                String?
+  requestedServices      BookingRequestedService[]
+  cargoItems             BookingRequestCargo[]
+  availabilityChecks     AvailabilityCheck[]
+  createdAt              DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  submittedAt            DateTime?                 @map("submitted_at") @db.Timestamptz(6)
+  reviewedAt             DateTime?                 @map("reviewed_at") @db.Timestamptz(6)
+  deletedAt              DateTime?                 @map("deleted_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, requestReference])
+  @@index([tenantId, status, requestedEta])
+  @@index([tenantId, vesselId, requestedEta])
+  @@index([tenantId, portId, requestedEta])
+  @@index([tenantId, preferredBerthId, requestedEta])
+  @@map("booking_requests")
+}
+
+model BookingRequestedService {
+  id                            String         @id @default(uuid()) @db.Uuid
+  tenantId                      String         @map("tenant_id") @db.Uuid
+  bookingRequestId              String         @map("booking_request_id") @db.Uuid
+  bookingRequest                BookingRequest @relation(fields: [bookingRequestId], references: [id])
+  serviceId                     String         @map("service_id") @db.Uuid
+  service                       ServiceCatalog @relation(fields: [serviceId], references: [id])
+  providerOrganizationId        String?        @map("provider_organization_id") @db.Uuid
+  serviceReceiverOrganizationId String?        @map("service_receiver_organization_id") @db.Uuid
+  billToOrganizationId          String?        @map("bill_to_organization_id") @db.Uuid
+  payerOrganizationId           String?        @map("payer_organization_id") @db.Uuid
+  status                        String         @default("requested")
+  quantity                      Decimal        @db.Decimal(14, 3)
+  unitOfMeasure                 String         @map("unit_of_measure")
+  requestedAt                   DateTime?      @map("requested_at") @db.Timestamptz(6)
+  isBillable                    Boolean        @default(true) @map("is_billable")
+  notes                         String?
+  createdAt                     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                     DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([bookingRequestId])
+  @@index([tenantId, serviceId, status])
+  @@map("booking_requested_services")
+}
+
+model BookingRequestCargo {
+  id               String         @id @default(uuid()) @db.Uuid
+  tenantId         String         @map("tenant_id") @db.Uuid
+  bookingRequestId String         @map("booking_request_id") @db.Uuid
+  bookingRequest   BookingRequest @relation(fields: [bookingRequestId], references: [id])
+  cargoItemId      String         @map("cargo_item_id") @db.Uuid
+  cargoItem        CargoItem      @relation(fields: [cargoItemId], references: [id])
+  operationType    String         @map("operation_type")
+  quantity         Decimal?       @db.Decimal(14, 3)
+  unitOfMeasure    String?        @map("unit_of_measure")
+  notes            String?
+
+  @@index([bookingRequestId])
+  @@index([cargoItemId])
+  @@map("booking_request_cargo")
+}
+
+model AvailabilityCheck {
+  id               String          @id @default(uuid()) @db.Uuid
+  tenantId         String          @map("tenant_id") @db.Uuid
+  tenant           Tenant          @relation(fields: [tenantId], references: [id])
+  bookingRequestId String?         @map("booking_request_id") @db.Uuid
+  bookingRequest   BookingRequest? @relation(fields: [bookingRequestId], references: [id])
+  portId           String          @map("port_id") @db.Uuid
+  berthId          String?         @map("berth_id") @db.Uuid
+  vesselId         String?         @map("vessel_id") @db.Uuid
+  requestedEta     DateTime        @map("requested_eta") @db.Timestamptz(6)
+  requestedEtd     DateTime        @map("requested_etd") @db.Timestamptz(6)
+  result           String
+  score            Int?
+  checks           Json
+  recommendations  Json?
+  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([tenantId, portId, requestedEta])
+  @@index([bookingRequestId, createdAt])
+  @@map("availability_checks")
 }
 
 model VesselMovement {
@@ -369,18 +481,19 @@ model MovementBerthStay {
 }
 
 model CargoItem {
-  id            String          @id @default(uuid()) @db.Uuid
-  tenantId      String          @map("tenant_id") @db.Uuid
-  cargoCode     String          @map("cargo_code")
-  name          String
-  cargoCategory String          @map("cargo_category")
-  unNumber      String?         @map("un_number")
-  isHazardous   Boolean         @default(false) @map("is_hazardous")
-  status        String          @default("active")
-  movements     MovementCargo[]
-  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
-  deletedAt     DateTime?       @map("deleted_at") @db.Timestamptz(6)
+  id              String                @id @default(uuid()) @db.Uuid
+  tenantId        String                @map("tenant_id") @db.Uuid
+  cargoCode       String                @map("cargo_code")
+  name            String
+  cargoCategory   String                @map("cargo_category")
+  unNumber        String?               @map("un_number")
+  isHazardous     Boolean               @default(false) @map("is_hazardous")
+  status          String                @default("active")
+  movements       MovementCargo[]
+  bookingRequests BookingRequestCargo[]
+  createdAt       DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt       DateTime?             @map("deleted_at") @db.Timestamptz(6)
 
   @@unique([tenantId, cargoCode])
   @@index([tenantId, name])
@@ -442,18 +555,19 @@ model TowageJob {
 }
 
 model ServiceCatalog {
-  id               String            @id @default(uuid()) @db.Uuid
-  tenantId         String            @map("tenant_id") @db.Uuid
-  code             String
-  name             String
-  category         String
-  defaultUnit      String            @map("default_unit")
-  isBillable       Boolean           @default(true) @map("is_billable")
-  status           String            @default("active")
-  movementServices MovementService[]
-  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
-  deletedAt        DateTime?         @map("deleted_at") @db.Timestamptz(6)
+  id                       String                    @id @default(uuid()) @db.Uuid
+  tenantId                 String                    @map("tenant_id") @db.Uuid
+  code                     String
+  name                     String
+  category                 String
+  defaultUnit              String                    @map("default_unit")
+  isBillable               Boolean                   @default(true) @map("is_billable")
+  status                   String                    @default("active")
+  movementServices         MovementService[]
+  bookingRequestedServices BookingRequestedService[]
+  createdAt                DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt                DateTime?                 @map("deleted_at") @db.Timestamptz(6)
 
   @@unique([tenantId, code])
   @@index([tenantId, category])

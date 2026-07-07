@@ -22,6 +22,8 @@ type ShellNavItem = {
 const navigation: readonly ShellNavItem[] = [
   { label: 'Command Center', href: '/', group: 'Operations', shortcut: 'G D' },
   { label: 'AI Assistant', href: '/ai-assistant', group: 'Operations' },
+  { label: 'Availability', href: '/availability', group: 'Operations' },
+  { label: 'Booking Requests', href: '/booking-requests', group: 'Operations' },
   { label: 'Vessel Calls', href: '/vessel-calls', group: 'Operations', shortcut: 'G C' },
   { label: 'Berth Board', href: '/berth-board', group: 'Operations', shortcut: 'G B' },
   { label: 'Movements', href: '/movements', group: 'Operations', shortcut: 'G M' },

@@ -57,6 +57,23 @@ export type VesselCallStatus =
 
 export type VesselCallSortField = 'callReference' | 'eta' | 'etd' | 'status' | 'createdAt';
 
+export type BookingRequestStatus =
+  | 'draft'
+  | 'submitted'
+  | 'under_review'
+  | 'availability_checked'
+  | 'approved'
+  | 'rejected'
+  | 'confirmed'
+  | 'cancelled';
+
+export type BookingRequestSortField =
+  'requestReference' | 'requestedEta' | 'status' | 'createdAt' | 'updatedAt';
+
+export type AvailabilityResult = 'available' | 'limited' | 'conflict' | 'manual_review_required';
+
+export type AvailabilityRuleStatus = 'pass' | 'warning' | 'fail' | 'manual_review';
+
 export type MovementStatus = 'planned' | 'in_progress' | 'completed' | 'cancelled';
 
 export type MovementType =
@@ -311,6 +328,100 @@ export type CreateVesselCallInput = {
 };
 
 export type UpdateVesselCallInput = Partial<CreateVesselCallInput>;
+
+export type BookingRequestRecord = {
+  readonly id: string;
+  readonly tenantId: string;
+  readonly requestReference: string;
+  readonly vesselId: string;
+  readonly portId: string;
+  readonly preferredBerthId: string | null;
+  readonly agentOrganizationId: string | null;
+  readonly customerOrganizationId: string | null;
+  readonly vesselCallId: string | null;
+  readonly status: BookingRequestStatus;
+  readonly requestedEta: string | null;
+  readonly requestedEtd: string | null;
+  readonly voyageNumber: string | null;
+  readonly cargoSummary: string | null;
+  readonly remarks: string | null;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+  readonly submittedAt: string | null;
+  readonly reviewedAt: string | null;
+};
+
+export type BookingRequestListQuery = {
+  readonly page?: number;
+  readonly pageSize?: number;
+  readonly search?: string;
+  readonly status?: BookingRequestStatus;
+  readonly vesselId?: string;
+  readonly portId?: string;
+  readonly preferredBerthId?: string;
+  readonly sortBy?: BookingRequestSortField;
+  readonly sortDirection?: SortDirection;
+};
+
+export type CreateBookingRequestInput = {
+  readonly requestReference: string;
+  readonly vesselId: string;
+  readonly portId: string;
+  readonly preferredBerthId?: string | null;
+  readonly agentOrganizationId?: string | null;
+  readonly customerOrganizationId?: string | null;
+  readonly requestedEta?: string | null;
+  readonly requestedEtd?: string | null;
+  readonly voyageNumber?: string | null;
+  readonly cargoSummary?: string | null;
+  readonly remarks?: string | null;
+};
+
+export type UpdateBookingRequestInput = Partial<CreateBookingRequestInput> & {
+  readonly status?: BookingRequestStatus;
+};
+
+export type AvailabilityRuleResult = {
+  readonly status: AvailabilityRuleStatus;
+  readonly message: string;
+  readonly details?: Record<string, unknown>;
+};
+
+export type AvailabilityCheckInput = {
+  readonly bookingRequestId?: string;
+  readonly vesselId: string;
+  readonly portId: string;
+  readonly preferredBerthId?: string | null;
+  readonly requestedEta: string;
+  readonly requestedEtd: string;
+  readonly cargoItemIds?: readonly string[];
+  readonly requestedServiceIds?: readonly string[];
+};
+
+export type AvailabilityCheckRecord = {
+  readonly id: string;
+  readonly tenantId: string;
+  readonly bookingRequestId: string | null;
+  readonly vesselId: string | null;
+  readonly portId: string;
+  readonly berthId: string | null;
+  readonly requestedEta: string;
+  readonly requestedEtd: string;
+  readonly result: AvailabilityResult;
+  readonly score: number | null;
+  readonly summary: string;
+  readonly checks: {
+    readonly berthWindow: AvailabilityRuleResult;
+    readonly vesselDimensions: AvailabilityRuleResult;
+    readonly draft: AvailabilityRuleResult;
+    readonly cargoRestrictions: AvailabilityRuleResult;
+    readonly serviceAvailability: AvailabilityRuleResult;
+  };
+  readonly recommendedBerthIds: readonly string[];
+  readonly blockingReasons: readonly string[];
+  readonly warnings: readonly string[];
+  readonly createdAt: string;
+};
 
 export type MovementRecord = {
   readonly id: string;
@@ -896,6 +1007,31 @@ export const vesselCallStatuses: readonly VesselCallStatus[] = [
   'alongside',
   'departed',
   'cancelled',
+];
+
+export const bookingRequestStatuses: readonly BookingRequestStatus[] = [
+  'draft',
+  'submitted',
+  'under_review',
+  'availability_checked',
+  'approved',
+  'rejected',
+  'confirmed',
+  'cancelled',
+];
+
+export const availabilityResults: readonly AvailabilityResult[] = [
+  'available',
+  'limited',
+  'conflict',
+  'manual_review_required',
+];
+
+export const availabilityRuleStatuses: readonly AvailabilityRuleStatus[] = [
+  'pass',
+  'warning',
+  'fail',
+  'manual_review',
 ];
 
 export const movementStatuses: readonly MovementStatus[] = [
